@@ -11,6 +11,7 @@ import {
 import type { BadgeVariant } from "../components/primitives/Badge";
 import { fetchKanbanItems, upsertKanbanItem, batchUpdateKanbanItems } from "../services/kanban";
 import { getReferenceUrl, getNoteDisplayTitle } from "../utils/text";
+import { noteBadge } from "../utils/noteBadge";
 import { prNoteKey } from "../utils/prNotes";
 
 export const KANBAN_COLUMNS: { id: KanbanColumnId; title: string; variant: BadgeVariant }[] = [
@@ -292,22 +293,8 @@ export function useKanban({
           title: noteTitle,
           subtitle: note.content || "",
           url: noteUrl || "",
-          sourceBadge:
-            note.type === "jira_ticket"
-              ? "JIRA"
-              : note.type === "github_pr"
-                ? "PR"
-                : note.type === "free_text"
-                  ? "Note"
-                  : "Link",
-          sourceBadgeVariant:
-            note.type === "jira_ticket"
-              ? "info"
-              : note.type === "github_pr"
-                ? "success"
-                : note.type === "free_text"
-                  ? "purple"
-                  : "neutral",
+          sourceBadge: noteBadge(note).label,
+          sourceBadgeVariant: noteBadge(note).variant,
           timestamp: note.updated_at,
         };
       }

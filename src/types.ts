@@ -170,7 +170,7 @@ export interface DashboardData {
 }
 
 // Note Types
-export type NoteType = "free_text" | "jira_ticket" | "github_pr" | "link";
+export type NoteType = "free_text" | "jira_ticket" | "github_pr" | "link" | "standup";
 
 export interface Note {
   id: number;

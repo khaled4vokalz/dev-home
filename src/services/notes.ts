@@ -3,7 +3,7 @@ import { createCollection, sqliteNow } from "../lib/localStore";
 
 export const notesCollection = createCollection<Note>("notes");
 
-const VALID_TYPES: NoteType[] = ["free_text", "jira_ticket", "github_pr", "link"];
+const VALID_TYPES: NoteType[] = ["free_text", "jira_ticket", "github_pr", "link", "standup"];
 
 /**
  * Accepts null/undefined (no reminder) or a non-empty string that parses to a

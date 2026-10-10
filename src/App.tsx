@@ -47,6 +47,7 @@ import { usePomodoro } from "./hooks/usePomodoro";
 import { PomodoroBadge } from "./views/pomodoro/PomodoroBadge";
 import type { FocusableItem } from "./types";
 import { getReferenceUrl, getNoteDisplayTitle } from "./utils/text";
+import { noteBadge } from "./utils/noteBadge";
 import { NAV_GROUPS, isTabVisible } from "./config/navTabs";
 import { sourcesFor, isRemoteSource, PAGE_REFRESH, type DataSource } from "./config/tabData";
 import { useKeyboardShortcuts, getShortcutTitle, isMac } from "./hooks/useKeyboardShortcuts";
@@ -364,13 +365,13 @@ export default function App() {
 
     for (const n of unresolvedNotes) {
       if (n.type === "free_text") continue;
+      const badge = noteBadge(n);
       push({
         id: String(n.id),
         group: "notes",
         title: getNoteDisplayTitle(n),
-        sourceBadge: n.type === "jira_ticket" ? "JIRA" : n.type === "github_pr" ? "PR" : "Link",
-        sourceBadgeVariant:
-          n.type === "jira_ticket" ? "info" : n.type === "github_pr" ? "success" : "neutral",
+        sourceBadge: badge.label,
+        sourceBadgeVariant: badge.variant,
         url: getReferenceUrl(n, jiraBaseUrl) || "",
       });
     }

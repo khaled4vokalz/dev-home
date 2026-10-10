@@ -20,6 +20,7 @@ import { DescriptionModal } from "../../components/DescriptionModal";
 import { usePRBody } from "../../hooks/usePRBody";
 import { SearchableDropdown, DropdownItem } from "../../components/SearchableDropdown";
 import { getReferenceUrl } from "../../utils/text";
+import { noteBadge } from "../../utils/noteBadge";
 import { KanbanCard } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
 import { SearchInput } from "../../components/SearchInput";
@@ -271,14 +272,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     if (kanbanItem.item_type === "note" && note) {
       return {
         title: selectedTile.title,
-        subtitle:
-          note.type === "jira_ticket"
-            ? "JIRA Ticket"
-            : note.type === "github_pr"
-              ? "GitHub PR"
-              : note.type === "free_text"
-                ? "Note"
-                : "Link",
+        subtitle: noteBadge(note).description,
         description: note.content || "",
         url: getReferenceUrl(note, jiraBase) || undefined,
       };

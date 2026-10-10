@@ -7,6 +7,7 @@ import {
   IconBrandJira,
   IconGitPullRequest,
   IconLink,
+  IconMicrophone,
   IconCheck,
   IconTrash,
   IconPin,
@@ -15,6 +16,7 @@ import {
 } from "@tabler/icons-react";
 import { Note } from "../../types";
 import { getReferenceUrl, getNoteDisplayTitle } from "../../utils/text";
+import { noteBadge } from "../../utils/noteBadge";
 import { formatRelativeTime, formatShortDate, describeReminder } from "../../utils/time";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -22,13 +24,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   jira_ticket: <IconBrandJira size={14} stroke={1.8} />,
   github_pr: <IconGitPullRequest size={14} stroke={1.8} />,
   link: <IconLink size={14} stroke={1.8} />,
-};
-
-const TYPE_LABEL: Record<string, string> = {
-  free_text: "Note",
-  jira_ticket: "JIRA",
-  github_pr: "PR",
-  link: "Link",
+  standup: <IconMicrophone size={14} stroke={1.8} />,
 };
 
 interface NoteCardProps {
@@ -102,7 +98,7 @@ export function NoteCard({
         </div>
 
         <div className="d-flex align-items-center gap-2 mt-auto pt-3">
-          <Badge variant="neutral">{TYPE_LABEL[note.type]}</Badge>
+          <Badge variant={noteBadge(note).variant}>{noteBadge(note).label}</Badge>
           <span
             className="text-secondary-custom"
             style={{ fontSize: "0.6875rem", whiteSpace: "nowrap" }}

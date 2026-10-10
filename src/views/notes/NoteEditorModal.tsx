@@ -30,7 +30,7 @@ interface NoteEditorModalProps {
     referenceId?: string,
     title?: string,
     remindAt?: string | null,
-  ) => Promise<void>;
+  ) => Promise<Note>;
   onEdit?: (
     id: number,
     updates: {
@@ -193,7 +193,7 @@ export const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
           content: markdown,
           remind_at: remindIso,
         };
-        if (detected.type !== "free_text") {
+        if (detected.type !== "free_text" && note.type !== "standup") {
           updates.reference_id = detected.referenceId;
         }
         await onEdit(note.id, updates);

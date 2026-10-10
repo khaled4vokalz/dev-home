@@ -49,6 +49,7 @@ export function useNotes(active: boolean) {
           remind_at: remindAt,
         });
         setNotes((prev) => [newNote, ...prev]);
+        return newNote;
       } catch (err: any) {
         setError(err?.message || "Failed to add note");
         throw err;
