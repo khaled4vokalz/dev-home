@@ -35,6 +35,12 @@ vi.mock("../../hooks/useWorkdayExtras", () => ({
   }),
 }));
 
+// The modal's notes panel needs the app-level NotesProvider; not under test here.
+vi.mock("../../components/PrNotesPanel", () => ({ PrNotesPanel: () => null }));
+vi.mock("../../hooks/usePRBody", () => ({
+  usePRBody: () => ({ body: "PR body text", loading: false }),
+}));
+
 import { WorkdayView } from "./WorkdayView";
 import { WorkdaySection } from "./WorkdaySection";
 
@@ -337,5 +343,15 @@ describe("PR row copy buttons", () => {
     });
     expect(writeText).toHaveBeenLastCalledWith("WMU-402");
     expect(screen.getByRole("status").textContent).toBe("Copied branch name to clipboard");
+  });
+
+  it("opens the PR modal from a row instead of a new tab", () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderView();
+    fireEvent.click(screen.getAllByText(/WMU-402 delete/)[0]);
+    expect(open).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.querySelector('a[href="https://github.com/o/r/pull/3310"]')).toBeTruthy();
+    open.mockRestore();
   });
 });

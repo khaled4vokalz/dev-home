@@ -193,7 +193,16 @@
   color: var(--color-text-primary);
 }
 
-a.workday-row-title:hover {
+button.workday-row-title {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.workday-row-title:hover {
   color: var(--color-accent);
 }
 

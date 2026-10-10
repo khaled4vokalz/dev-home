@@ -7,6 +7,8 @@ import { Badge, type BadgeVariant } from "../../components/primitives/Badge";
 import { SectionHeader } from "../../components/primitives/SectionHeader";
 import { EmptyState } from "../../components/EmptyState";
 import { TicketChip } from "../../components/PRTable";
+import { DescriptionModal } from "../../components/DescriptionModal";
+import { usePRBody } from "../../hooks/usePRBody";
 import { Toast, useToast } from "../../components/Toast";
 import { formatRelativeTime } from "../../utils/time";
 import { useWorkdayExtras } from "../../hooks/useWorkdayExtras";
@@ -98,15 +100,25 @@ function TicketLabel({ ticket, jiraBaseUrl }: { ticket: TicketRef | null; jiraBa
   );
 }
 
-function PRTitle({ pr }: { pr: GitHubPR }) {
+type OpenPR = (pr: GitHubPR) => void;
+
+function PRTitle({ pr, onOpen }: { pr: GitHubPR; onOpen: OpenPR }) {
   return (
-    <a className="workday-row-title" href={pr.html_url} target="_blank" rel="noopener noreferrer">
+    <button type="button" className="workday-row-title" onClick={() => onOpen(pr)}>
       #{pr.number} {pr.title}
-    </a>
+    </button>
   );
 }
 
-function DoneRow({ item, jiraBaseUrl }: { item: DoneItem; jiraBaseUrl: string }) {
+function DoneRow({
+  item,
+  jiraBaseUrl,
+  onOpen,
+}: {
+  item: DoneItem;
+  jiraBaseUrl: string;
+  onOpen: OpenPR;
+}) {
   const pill =
     item.kind === "merged"
       ? { label: "Merged", variant: "success" as const }
@@ -120,14 +132,22 @@ function DoneRow({ item, jiraBaseUrl }: { item: DoneItem; jiraBaseUrl: string })
       {item.kind === "status" ? (
         <span className="workday-row-title">{item.ticket.summary}</span>
       ) : (
-        <PRTitle pr={item.pr} />
+        <PRTitle pr={item.pr} onOpen={onOpen} />
       )}
       <span className="workday-row-meta">{formatRelativeTime(item.at)}</span>
     </div>
   );
 }
 
-function BlockerRow({ item, jiraBaseUrl }: { item: BlockerItem; jiraBaseUrl: string }) {
+function BlockerRow({
+  item,
+  jiraBaseUrl,
+  onOpen,
+}: {
+  item: BlockerItem;
+  jiraBaseUrl: string;
+  onOpen: OpenPR;
+}) {
   if (item.kind === "flagged") {
     return (
       <div className="workday-row">
@@ -140,7 +160,7 @@ function BlockerRow({ item, jiraBaseUrl }: { item: BlockerItem; jiraBaseUrl: str
   return (
     <div className="workday-row">
       <TicketLabel ticket={item.ticket} jiraBaseUrl={jiraBaseUrl} />
-      <PRTitle pr={item.pr} />
+      <PRTitle pr={item.pr} onOpen={onOpen} />
       {item.reasons.map((r) => (
         // A missing reviewer is a nudge; CI/conflicts/requested changes block.
         <Badge key={r} variant={r === "No reviewer requested" ? "warning" : "danger"}>
@@ -151,7 +171,15 @@ function BlockerRow({ item, jiraBaseUrl }: { item: BlockerItem; jiraBaseUrl: str
   );
 }
 
-function WaitingRow({ item, jiraBaseUrl }: { item: WaitingItem; jiraBaseUrl: string }) {
+function WaitingRow({
+  item,
+  jiraBaseUrl,
+  onOpen,
+}: {
+  item: WaitingItem;
+  jiraBaseUrl: string;
+  onOpen: OpenPR;
+}) {
   if (item.kind === "code-review") {
     return (
       <div className="workday-row">
@@ -164,7 +192,7 @@ function WaitingRow({ item, jiraBaseUrl }: { item: WaitingItem; jiraBaseUrl: str
   return (
     <div className="workday-row">
       <TicketLabel ticket={item.ticket} jiraBaseUrl={jiraBaseUrl} />
-      <PRTitle pr={item.pr} />
+      <PRTitle pr={item.pr} onOpen={onOpen} />
       <span className="workday-row-meta">
         {item.kind === "your-move"
           ? "Approved — your move"
@@ -218,6 +246,8 @@ export function WorkdayView(props: WorkdayViewProps) {
   const [lookback, setLookback] = useStoredState<Lookback>(LOOKBACK_KEY, "workday", LOOKBACKS);
   const [showAllOff, setShowAllOff] = useState(false);
   const toast = useToast();
+  const [selectedPR, setSelectedPR] = useState<GitHubPR | null>(null);
+  const selectedBody = usePRBody(selectedPR);
 
   // Keyed on the joined string: callers often pass a fresh array each render.
   const weekendKey = weekendDays.join(",");
@@ -333,6 +363,7 @@ export function WorkdayView(props: WorkdayViewProps) {
                 key={`${item.kind}:${item.kind === "status" ? item.ticket.key : item.pr.html_url}:${item.at}`}
                 item={item}
                 jiraBaseUrl={jiraBaseUrl}
+                onOpen={setSelectedPR}
               />
             ))}
           </WorkdaySection>
@@ -349,6 +380,7 @@ export function WorkdayView(props: WorkdayViewProps) {
               groups={workingOn.items}
               fields={MY_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
+              onOpen={setSelectedPR}
               onCopyBranch={copyBranch}
               onCopyLink={copyLink}
             />
@@ -366,6 +398,7 @@ export function WorkdayView(props: WorkdayViewProps) {
               groups={reviewing.items}
               fields={REVIEW_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
+              onOpen={setSelectedPR}
               onCopyBranch={copyBranch}
               onCopyLink={copyLink}
               rowSuffix={(pr) =>
@@ -395,6 +428,7 @@ export function WorkdayView(props: WorkdayViewProps) {
                 key={item.kind === "pr" ? item.pr.html_url : `flagged:${item.ticket.key}`}
                 item={item}
                 jiraBaseUrl={jiraBaseUrl}
+                onOpen={setSelectedPR}
               />
             ))}
           </WorkdaySection>
@@ -412,6 +446,7 @@ export function WorkdayView(props: WorkdayViewProps) {
                 key={item.kind === "code-review" ? `cr:${item.ticket.key}` : item.pr.html_url}
                 item={item}
                 jiraBaseUrl={jiraBaseUrl}
+                onOpen={setSelectedPR}
               />
             ))}
           </WorkdaySection>
@@ -467,6 +502,19 @@ export function WorkdayView(props: WorkdayViewProps) {
           </Card>
         </div>
       </div>
+
+      <DescriptionModal
+        show={!!selectedPR}
+        onHide={() => setSelectedPR(null)}
+        title={selectedPR ? `#${selectedPR.number} ${selectedPR.title}` : ""}
+        subtitle={`${selectedPR?.user.login} · ${selectedPR?.repo_full_name} · ${selectedPR?.head.ref} · ${formatRelativeTime(selectedPR?.created_at || "")}`}
+        description={selectedBody.body}
+        loading={selectedBody.loading}
+        url={selectedPR?.html_url}
+        jiraBaseUrl={jiraBaseUrl}
+        checks={selectedPR?.checks}
+        pr={selectedPR ?? undefined}
+      />
 
       <Toast message={toast.message} visible={toast.visible} />
     </div>

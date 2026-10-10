@@ -24,14 +24,14 @@ export function OffSprintPill() {
   return <span className="workday-pill workday-pill--offsprint">Off-sprint</span>;
 }
 
-const openPR = (p: GitHubPR) => window.open(p.html_url, "_blank", "noopener,noreferrer");
-
 interface TicketGroupListProps {
   groups: TicketGroup[];
   fields: PRCardFields;
   jiraBaseUrl: string;
   /** Optional trailing label per PR row (e.g. "Review requested"). */
   rowSuffix?: (pr: GitHubPR) => React.ReactNode;
+  /** Opens the PR detail modal. */
+  onOpen: (pr: GitHubPR) => void;
   onCopyBranch?: (branch: string) => void;
   onCopyLink?: (url: string) => void;
 }
@@ -46,6 +46,7 @@ export function TicketGroupList({
   fields,
   jiraBaseUrl,
   rowSuffix,
+  onOpen,
   onCopyBranch,
   onCopyLink,
 }: TicketGroupListProps) {
@@ -79,7 +80,7 @@ export function TicketGroupList({
                 fields={fields}
                 jiraBaseUrl={jiraBaseUrl}
                 clustered
-                onOpen={openPR}
+                onOpen={onOpen}
                 onCopyBranch={onCopyBranch}
                 onCopyLink={onCopyLink}
               />
