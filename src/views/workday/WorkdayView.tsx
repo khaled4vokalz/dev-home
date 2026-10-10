@@ -303,6 +303,7 @@ export function WorkdayView(props: WorkdayViewProps) {
       <div className="workday">
         <div className="workday-main">
           <WorkdaySection
+            id="done"
             title={DONE_TITLES[lookback]}
             count={done.items.length}
             loading={done.loading}
@@ -334,6 +335,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
+            id="workingOn"
             title="Working on"
             count={workingOn.items.length}
             loading={loading}
@@ -348,6 +350,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
+            id="reviewing"
             title="Reviewing"
             count={reviewing.items.length}
             loading={loading}
@@ -365,6 +368,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
+            id="blockers"
             title="Blockers / needs attention"
             count={blockers.items.length}
             loading={loading || blockers.loading}
@@ -381,6 +385,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
+            id="waiting"
             title="Waiting on others"
             count={waiting.items.length}
             loading={loading}
@@ -397,6 +402,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
+            id="notStarted"
             title="Assigned, not started"
             count={notStarted.items.length + offItems.length}
             loading={loading || notStarted.loading}

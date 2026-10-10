@@ -252,11 +252,46 @@ describe("WorkdayView", () => {
 describe("WorkdaySection", () => {
   it("hides the empty line when there is an error", () => {
     render(
-      <WorkdaySection title="Done" count={0} loading={false} error="Jira down" empty="Nothing here">
+      <WorkdaySection
+        id="done"
+        title="Done"
+        count={0}
+        loading={false}
+        error="Jira down"
+        empty="Nothing here"
+      >
         {null}
       </WorkdaySection>,
     );
     expect(screen.getByText("Jira down")).toBeTruthy();
     expect(screen.queryByText("Nothing here")).toBeNull();
+  });
+
+  it("collapses and expands from the header, remembering the choice", () => {
+    localStorage.clear();
+    const view = () => (
+      <WorkdaySection
+        id="workingOn"
+        title="Working on"
+        count={1}
+        loading={false}
+        error={null}
+        empty=""
+      >
+        <div>row one</div>
+      </WorkdaySection>
+    );
+    const { unmount } = render(view());
+    const toggle = screen.getByRole("button", { name: /Working on/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle);
+    expect(screen.queryByText("row one")).toBeNull();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    unmount();
+
+    render(view());
+    expect(screen.queryByText("row one")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Working on/ }));
+    expect(screen.getByText("row one")).toBeTruthy();
   });
 });
