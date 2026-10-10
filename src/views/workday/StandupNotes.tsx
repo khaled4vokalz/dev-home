@@ -1,0 +1,129 @@
+import { useEffect, useRef, useState } from "react";
+import Card from "react-bootstrap/Card";
+import type { Note, NoteType } from "../../types";
+import { SectionHeader } from "../../components/primitives/SectionHeader";
+import { standupRef, standupTitle } from "./dates";
+
+const SAVE_DEBOUNCE_MS = 600;
+
+interface StandupNotesProps {
+  now: Date;
+  notes: Note[];
+  addNote: (type: NoteType, content: string, referenceId?: string, title?: string) => Promise<Note>;
+  editNote: (id: number, updates: { content?: string; title?: string }) => Promise<void>;
+  /** Called on every keystroke so the copy preview stays live. */
+  onChange: (content: string) => void;
+}
+
+/**
+ * Today's standup note, autosaved (debounced) into Notes. The first save
+ * creates the note; keystrokes during that create are folded into one
+ * follow-up edit so we never create two notes for the same day.
+ */
+export function StandupNotes({ now, notes, addNote, editNote, onChange }: StandupNotesProps) {
+  const referenceId = standupRef(now);
+  const title = standupTitle(now);
+  const note = notes.find((n) => n.type === "standup" && n.reference_id === referenceId);
+
+  const [text, setText] = useState(note?.content ?? "");
+  const typedRef = useRef(false);
+  const latestRef = useRef(text);
+  const noteIdRef = useRef<number | null>(note?.id ?? null);
+  const creatingRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs so the debounced save always sees the latest callbacks and context.
+  const addNoteRef = useRef(addNote);
+  const editNoteRef = useRef(editNote);
+  const referenceIdRef = useRef(referenceId);
+  const titleRef = useRef(title);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    addNoteRef.current = addNote;
+    editNoteRef.current = editNote;
+    referenceIdRef.current = referenceId;
+    titleRef.current = title;
+    onChangeRef.current = onChange;
+  });
+
+  // Remounts per day (keyed by the parent): seed the preview with this day's text.
+  useEffect(() => onChangeRef.current(latestRef.current), []);
+
+  // Notes load after mount: adopt the saved note once, unless the user already typed.
+  useEffect(() => {
+    if (!note) return;
+    if (noteIdRef.current === null) noteIdRef.current = note.id;
+    if (!typedRef.current && latestRef.current !== note.content) {
+      latestRef.current = note.content;
+      setText(note.content);
+      onChangeRef.current(note.content);
+      typedRef.current = true;
+    }
+  }, [note]);
+
+  const save = async () => {
+    timerRef.current = null;
+    const content = latestRef.current;
+    if (noteIdRef.current !== null) {
+      await editNoteRef.current(noteIdRef.current, { content });
+      return;
+    }
+    if (creatingRef.current) return; // the in-flight create will pick up latestRef
+    creatingRef.current = true;
+    try {
+      const created = await addNoteRef.current(
+        "standup",
+        content,
+        referenceIdRef.current,
+        titleRef.current,
+      );
+      noteIdRef.current = created.id;
+      if (latestRef.current !== content) {
+        await editNoteRef.current(created.id, { content: latestRef.current });
+      }
+    } finally {
+      creatingRef.current = false;
+    }
+  };
+  const saveRef = useRef(save);
+  useEffect(() => {
+    saveRef.current = save;
+  });
+
+  // Flush a pending save on unmount so the last keystrokes aren't lost.
+  useEffect(
+    () => () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        void saveRef.current();
+      }
+    },
+    [],
+  );
+
+  const handleChange = (value: string) => {
+    typedRef.current = true;
+    latestRef.current = value;
+    setText(value);
+    onChange(value);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => void saveRef.current(), SAVE_DEBOUNCE_MS);
+  };
+
+  return (
+    <Card className="workday-side-card">
+      <Card.Body className="p-0">
+        <SectionHeader className="workday-section-header">Notes for today</SectionHeader>
+        <div className="workday-side-body">
+          <textarea
+            className="form-control"
+            rows={6}
+            placeholder="Anything to raise at standup? Each line becomes a Blockers bullet."
+            value={text}
+            onChange={(e) => handleChange(e.target.value)}
+          />
+          <div className="workday-hint">Saved to Notes as “{title}”</div>
+        </div>
+      </Card.Body>
+    </Card>
+  );
+}

@@ -140,7 +140,7 @@ const EMPTY_STATE: Record<
 
 /** Ticket key that opens the shared Jira drawer (or a plain chip when no Jira
     base URL). Used on cluster headers, where the key labels the whole group. */
-function TicketChip({ ticket, jiraBaseUrl }: { ticket: string; jiraBaseUrl?: string }) {
+export function TicketChip({ ticket, jiraBaseUrl }: { ticket: string; jiraBaseUrl?: string }) {
   const openIssue = useOptionalJiraDrawer();
   if (!jiraBaseUrl) return <span className="ticket-chip">{ticket}</span>;
   return (
