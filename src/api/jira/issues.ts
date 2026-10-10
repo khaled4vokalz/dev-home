@@ -6,6 +6,12 @@ import { adfToMarkdown } from "./adf";
  * CMP project on optimizely-ext uses this one (verified on DAM, CCP, WMU, CPC).
  */
 export const CODE_REVIEWERS_FIELD = "customfield_10324";
+/** Sprint field (array of { id, name, state }). Site-wide on optimizely-ext. */
+export const SPRINT_FIELD = "customfield_10020";
+/** Story Points (number). Site-wide on optimizely-ext. */
+export const STORY_POINTS_FIELD = "customfield_10127";
+/** Flagged (array like [{ value: "Impediment" }] when set, else null). */
+export const FLAGGED_FIELD = "customfield_10021";
 
 /** Fields shared by every issue list (assigned, by-key, JQL search). */
 export const BASE_ISSUE_FIELDS = [
@@ -28,7 +34,10 @@ export function mapIssue(issue: any, opts: { withDetail?: boolean } = {}): any {
     summary: f.summary,
     status: {
       name: f.status?.name,
-      statusCategory: { colorName: f.status?.statusCategory?.colorName },
+      statusCategory: {
+        key: f.status?.statusCategory?.key,
+        colorName: f.status?.statusCategory?.colorName,
+      },
     },
     priority: { name: f.priority?.name, iconUrl: f.priority?.iconUrl },
     assignee: f.assignee
@@ -241,7 +250,7 @@ export function resetMyselfCache(): void {
  * configured email — the proxy deliberately doesn't expose /myself. Resolves
  * null on failure.
  */
-function getMyself(): Promise<{ accountId: string; displayName: string } | null> {
+export function getMyself(): Promise<{ accountId: string; displayName: string } | null> {
   const s = requireSettings();
   const key = `${s.jiraBaseUrl}|${s.jiraEmail}`;
   if (myselfCache?.key !== key) {

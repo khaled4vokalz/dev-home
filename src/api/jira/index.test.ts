@@ -127,6 +127,29 @@ describe("Jira API", () => {
         { displayName: "Guru Gayen", avatarUrls: { "48x48": "https://example.com/g.png" } },
       ]);
     });
+
+    it("maps the status category key", async () => {
+      httpMock.adapter = vi.fn(async (config) => ({
+        data: {
+          issues: [
+            {
+              key: "TEST-2",
+              fields: {
+                summary: "x",
+                status: { name: "To Do", statusCategory: { key: "new", colorName: "blue-gray" } },
+                project: { key: "TEST", name: "Test" },
+              },
+            },
+          ],
+        },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      }));
+      const { issues } = await getIssues();
+      expect(issues[0].status.statusCategory).toEqual({ key: "new", colorName: "blue-gray" });
+    });
   });
 
   describe("postIssuesBulk", () => {

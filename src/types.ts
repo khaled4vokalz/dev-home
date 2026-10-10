@@ -1,10 +1,14 @@
 // JIRA Types
+export type StatusCategoryKey = "new" | "indeterminate" | "done";
+
 export interface JiraIssue {
   key: string;
   summary: string;
   status: {
     name: string;
     statusCategory: {
+      /** Jira's category; absent on issues cached before this field was mapped. */
+      key?: StatusCategoryKey;
       colorName: string;
     };
   };
