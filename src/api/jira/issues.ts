@@ -1,6 +1,12 @@
 import { jiraClient, requireSettings } from "../http";
 import { adfToMarkdown } from "./adf";
 
+/**
+ * "Code Reviewers" multi-user field. Custom field IDs are site-wide, and every
+ * CMP project on optimizely-ext uses this one (verified on DAM, CCP, WMU, CPC).
+ */
+export const CODE_REVIEWERS_FIELD = "customfield_10324";
+
 /** Fields shared by every issue list (assigned, by-key, JQL search). */
 export const BASE_ISSUE_FIELDS = [
   "summary",
@@ -11,6 +17,7 @@ export const BASE_ISSUE_FIELDS = [
   "project",
   "created",
   "updated",
+  CODE_REVIEWERS_FIELD,
 ];
 
 /** Map a raw Jira search issue to the app's JiraIssue shape. */
@@ -33,6 +40,10 @@ export function mapIssue(issue: any, opts: { withDetail?: boolean } = {}): any {
     project: { key: f.project?.key, name: f.project?.name },
     created: f.created,
     updated: f.updated,
+    codeReviewers: (f[CODE_REVIEWERS_FIELD] ?? []).map((u: any) => ({
+      displayName: u.displayName,
+      avatarUrls: u.avatarUrls,
+    })),
   };
   if (opts.withDetail) {
     mapped.description = adfToMarkdown(f.description);

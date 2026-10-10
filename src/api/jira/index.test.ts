@@ -93,6 +93,39 @@ describe("Jira API", () => {
       const data = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
       expect(data.jql).toContain("assignee = currentUser()");
       expect(data.jql).toContain("resolution = Unresolved");
+      expect(data.fields).toContain("customfield_10324");
+      expect(result.issues[0].codeReviewers).toEqual([]);
+    });
+
+    it("maps the Code Reviewers field", async () => {
+      httpMock.adapter = vi.fn(async (config) => ({
+        data: {
+          issues: [
+            {
+              key: "TEST-2",
+              fields: {
+                summary: "Reviewed issue",
+                customfield_10324: [
+                  {
+                    accountId: "abc",
+                    displayName: "Guru Gayen",
+                    avatarUrls: { "48x48": "https://example.com/g.png" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      }));
+
+      const result = await getIssues();
+      expect(result.issues[0].codeReviewers).toEqual([
+        { displayName: "Guru Gayen", avatarUrls: { "48x48": "https://example.com/g.png" } },
+      ]);
     });
   });
 

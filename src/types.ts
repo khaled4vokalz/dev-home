@@ -30,6 +30,13 @@ export interface JiraIssue {
   };
   created: string;
   updated: string;
+  /** Users in Jira's "Code Reviewers" field; empty when none are set. */
+  codeReviewers: {
+    displayName: string;
+    avatarUrls: {
+      "48x48": string;
+    };
+  }[];
   /**
    * Full issue description (ADF converted to markdown). Only populated by the
    * bulk endpoint; the assigned-issues list and filter search omit it and it is
