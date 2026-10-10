@@ -8,10 +8,11 @@ Status: approved in brainstorming, pending spec review
 A single **Workday** sidebar tab that holds everything needed for a daily
 standup update and stays useful for the rest of the day: what I finished since
 the last workday, what I'm working on (own PRs + reviews), what's blocking or
-waiting, what's assigned but not started, and what I'm carrying outside the
-sprint. A **Copy standup** button produces Slack-ready markdown.
+waiting, and what's assigned but not started. Work outside the active sprint
+is woven into those sections with an **Off-sprint** indicator rather than
+listed separately. A **Copy standup** button produces Slack-ready markdown.
 
-Mockup: `.superpowers/brainstorm/5861-1791656252/content/workday.html`
+Mockup: `.superpowers/brainstorm/5861-1791656252/content/workday-v2.html`
 (gitignored; regenerate from this spec if lost).
 
 ## Decisions
@@ -21,7 +22,8 @@ Mockup: `.superpowers/brainstorm/5861-1791656252/content/workday.html`
 | Use case | Read on screen during standup **and** copy as Slack markdown |
 | Placement | New sidebar tab **Workday** only (no Summary button) |
 | "In sprint" | Ticket is in **any open sprint** (`sprint in openSprints()`); no board config |
-| Outside sprint window | Tickets updated in the **last 60 days** |
+| Off-sprint work | No separate section — woven into the normal sections with a dashed **Off-sprint** label; header filter All / Sprint only / Off-sprint |
+| Off-sprint window | Off-sprint *not-started* tickets limited to those updated in the **last 60 days** |
 | Weekend | Configurable in Settings, **default Friday + Saturday** |
 | Data approach | **A** — compose client-side from existing dashboard sources + one new lazy `workday` source |
 | Notes | Real notes in the existing notes store, new note type **`standup`**, shown everywhere with a "Standup" badge |
@@ -30,7 +32,23 @@ Mockup: `.superpowers/brainstorm/5861-1791656252/content/workday.html`
 
 Two columns: sections on the left, notes + copy preview on the right.
 Header: title, today's date pill, "Since <last workday start>" subtitle,
-**Refresh**, **Copy standup** (primary).
+sprint filter chips (**All** · **Sprint only** · **Off-sprint · N**, persisted
+in localStorage), **Refresh**, **Copy standup** (primary).
+
+### Off-sprint indicator
+
+A ticket is **off-sprint** when it is assigned to me, unresolved, and not in
+any open sprint. Off-sprint tickets are routed into the regular sections by
+their state (below) and carry a dashed amber **Off-sprint** pill wherever they
+appear (ticket group header, row, Blockers/Waiting rows). Rules:
+
+- Only tickets **assigned to me** can be marked off-sprint; PRs I review on
+  other people's tickets never get the indicator (their sprint state is
+  unknown).
+- PRs inherit the indicator from their ticket.
+- The sprint filter hides/shows rows by this flag; **N** counts distinct
+  off-sprint tickets on the page. With *Sprint only*, PRs with no ticket stay
+  visible.
 
 Sections, top to bottom:
 
@@ -48,8 +66,8 @@ Sections, top to bottom:
      Code Review, …) that have no open PR of mine — rendered as a group header
      only, with a dashed **"No PR yet"** pill;
    - PRs without a ticket key under a "No ticket" group.
-   Only tickets in an open sprint, or tickets referenced by my open PRs, appear
-   here; other in-progress tickets go to *Outside the sprint*.
+   Off-sprint in-progress tickets appear here too, with the Off-sprint pill,
+   regardless of age.
 3. **Reviewing** — union of `reviewRequests` and `reviewingPRs` (deduped by PR
    URL), grouped by ticket. Rows show author, "review requested" vs "you
    requested changes" (+ "author pushed since" when the head commit is newer
@@ -63,12 +81,11 @@ Sections, top to bottom:
    move"); assigned tickets in status *Code Review* show their Jira **Code
    Reviewers** (`customfield_10324`, already mapped to
    `JiraIssue.codeReviewers`).
-6. **Assigned, not started** — tickets in an open sprint with status category
-   *new*; shows sprint name and story points (`customfield_10127`).
-7. **Outside the sprint** — assigned, unresolved, not in any open sprint,
-   updated within 60 days; shows status, "No PR" pill when I have no open PR
-   for it, and last-updated age. A ticket here that has my open PR also shows
-   in *Working on* (via the PR) — the overlap is intentional.
+6. **Assigned, not started** — tickets with status category *new* and no open
+   PR of mine. Sprint tickets first (sprint name, story points
+   `customfield_10127`); then, under a muted "Off-sprint" divider, off-sprint
+   tickets updated in the last 60 days, newest first, showing the first 3 with
+   a "Show N more" expander. Off-sprint rows show last-updated age.
 
 Right column:
 
@@ -101,7 +118,7 @@ Jira (server-proxied, like all Jira calls):
    fields: `summary, status, customfield_10020 (Sprint), customfield_10127
    (Story Points), customfield_10021 (Flagged), customfield_10324`.
    Returns per key: sprint name (active one), points, status category, flagged.
-2. **Outside sprint** —
+2. **Off-sprint tickets** (data for the indicator and routing, not a section) —
    `assignee = currentUser() AND resolution = Unresolved AND (sprint is EMPTY OR sprint not in openSprints()) AND updated >= -60d ORDER BY updated DESC`;
    `BASE_ISSUE_FIELDS` + flagged. Paginate with `nextPageToken`, cap 200.
 3. **Done since** —
@@ -132,8 +149,8 @@ category rather than colour.
 ### Composition
 
 Pure function `buildWorkday(inputs, now, settings) → WorkdaySections` in
-`src/utils/workday.ts` (or `src/views/workday/buildWorkday.ts`). Inputs are the
-reused dashboard arrays plus the `workday` source result; output is the seven
+`src/views/workday/buildWorkday.ts`. Inputs are the
+reused dashboard arrays plus the `workday` source result; output is the six
 sections in display order, each with `items` and an optional `error`.
 
 Pure function `lastWorkdayStart(now, weekendDays) → Date`: local midnight at
@@ -187,7 +204,9 @@ Pure function `workdayToMarkdown(sections, noteContent) → string`:
   4 + 5 + note lines.
 - Each ticket/PR appears once, at its highest-priority placement:
   Blockers > Today. Empty headings are omitted.
-- Not-started and outside-sprint sections are not included.
+- Not-started section is not included.
+- Off-sprint items are suffixed `(off-sprint)`, e.g.
+  `• CHD-88 Preview links expire too early (off-sprint, no PR yet)`.
 - Clipboard write confirms with the bottom-fixed toast (no inline alert).
 
 ## Navigation wiring
@@ -209,9 +228,11 @@ Pure function `workdayToMarkdown(sections, noteContent) → string`:
 
 ## Testing
 
-- `buildWorkday`: ticket grouping, no-PR tickets, in-sprint vs outside-sprint
-  routing, not-started by status category, Reviewing dedupe, Blockers/Waiting
-  selection.
+- `buildWorkday`: ticket grouping, no-PR tickets, off-sprint flagging and
+  routing into Working on / Blockers / Waiting / Not started, 60-day limit only
+  on off-sprint not-started, not-started by status category, Reviewing dedupe
+  (never flagged), Blockers/Waiting selection.
+- Sprint filter: All / Sprint only / Off-sprint visibility and the N count.
 - `lastWorkdayStart`: weekday, day after weekend, custom weekend sets, all-days
   edge case (falls back to yesterday).
 - `workdayToMarkdown`: dedupe priority, omitted empty headings, note lines.
