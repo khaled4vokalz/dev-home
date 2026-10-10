@@ -162,6 +162,18 @@ export interface GitHubPR {
   labels?: GitHubLabel[];
   /** Review requests only: the viewer has already reviewed or commented on this PR. */
   viewer_engaged?: boolean;
+  /** Pending review requests (user logins / team names). Undefined when the query didn't fetch them. */
+  requested_reviewers?: string[];
+}
+
+/** A review the viewer submitted. */
+export type ReviewState = "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED";
+
+/** Someone else's PR the viewer reviewed, with their latest review in the window. */
+export interface ReviewedPR {
+  pr: GitHubPR;
+  state: ReviewState;
+  submittedAt: string;
 }
 
 export interface GitHubComment {

@@ -1,3 +1,4 @@
+import type { ReviewedPR, ReviewState } from "../../types";
 import { requireSettings } from "../http/credentials";
 import { ApiError, toApiError } from "../http/errors";
 import { githubGraphql, githubRest } from "../http/github";
@@ -12,6 +13,7 @@ import {
 import {
   OWN_PR_COMMENTS_QUERY,
   PR_BODY_QUERY,
+  REVIEWED_SINCE_QUERY,
   REVIEW_SEARCH_QUERY,
   SEARCH_MERGED_PRS_QUERY,
   SEARCH_MY_PRS_QUERY,
@@ -319,7 +321,7 @@ export function buildMergedPrsQuery(args: {
  * Optional: authors (logins), repos (owner/repo) — any of each
  */
 export async function getMergedPrs(
-  args: { scope?: "user" | "org"; authors?: string[]; repos?: string[] } = {},
+  args: { scope?: "user" | "org"; authors?: string[]; repos?: string[]; since?: Date } = {},
 ): Promise<{ prs: any[] }> {
   const config = requireSettings();
   const scope = args.scope === "org" ? "org" : "user";
@@ -332,7 +334,7 @@ export async function getMergedPrs(
     org: config.githubOrg,
     authors,
     repos,
-    since: hoursAgo(24 * 3), // last 3 days
+    since: args.since ? args.since.toISOString() : hoursAgo(24 * 3), // default: last 3 days
   });
   if (q === null) {
     return { prs: [] };
@@ -345,6 +347,43 @@ export async function getMergedPrs(
 
   const prs = (result.search.nodes || []).map((n: any) => mapGraphQLPr(n));
   return { prs };
+}
+
+/** Upper bound on reviewed PRs considered for Workday "Done since". */
+const MAX_REVIEWED = 50;
+const REVIEW_STATES: ReadonlySet<string> = new Set(["APPROVED", "CHANGES_REQUESTED", "COMMENTED"]);
+
+/**
+ * Others' PRs the viewer reviewed since `since`, with the viewer's latest
+ * submitted review in that window. Pending and dismissed reviews are skipped.
+ */
+export async function getReviewedSince(since: Date): Promise<{ reviews: ReviewedPR[] }> {
+  const { githubUsername: user } = requireSettings();
+  const query = `reviewed-by:${user} -author:${user} type:pr updated:>=${since.toISOString().slice(0, 10)}`;
+  const result = await githubGraphql<{ search: { nodes: any[] } }>(REVIEWED_SINCE_QUERY, {
+    query,
+    first: MAX_REVIEWED,
+  });
+  const sinceMs = since.getTime();
+  const me = user.toLowerCase();
+  const reviews: ReviewedPR[] = [];
+  for (const node of result.search.nodes || []) {
+    let latest: { at: number; state: ReviewState; submittedAt: string } | null = null;
+    for (const r of node.reviews?.nodes || []) {
+      if ((r.author?.login || "").toLowerCase() !== me || !REVIEW_STATES.has(r.state)) continue;
+      const at = new Date(r.submittedAt).getTime();
+      if (Number.isNaN(at) || at < sinceMs) continue;
+      if (!latest || at > latest.at) latest = { at, state: r.state, submittedAt: r.submittedAt };
+    }
+    if (latest) {
+      reviews.push({
+        pr: mapGraphQLPr(node),
+        state: latest.state,
+        submittedAt: latest.submittedAt,
+      });
+    }
+  }
+  return { reviews };
 }
 
 /**

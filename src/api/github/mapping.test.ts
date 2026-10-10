@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveReviewStatus } from "./mapping";
+import { deriveReviewStatus, mapGraphQLPr } from "./mapping";
 
 const r = (login: string, state: string) => ({ state, author: { login } });
 
@@ -34,5 +34,21 @@ describe("deriveReviewStatus", () => {
     expect(
       deriveReviewStatus([r("bob", "APPROVED")], { reviewDecision: "REVIEW_REQUIRED" }),
     ).toBeNull();
+  });
+});
+
+describe("mapGraphQLPr requested_reviewers", () => {
+  it("maps users and teams, and leaves it undefined when not fetched", () => {
+    const node = {
+      reviewRequests: {
+        nodes: [
+          { requestedReviewer: { login: "guru" } },
+          { requestedReviewer: { name: "cmp-team" } },
+          { requestedReviewer: null },
+        ],
+      },
+    };
+    expect(mapGraphQLPr(node).requested_reviewers).toEqual(["guru", "cmp-team"]);
+    expect(mapGraphQLPr({}).requested_reviewers).toBeUndefined();
   });
 });

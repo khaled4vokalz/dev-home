@@ -184,6 +184,11 @@ export function mapGraphQLPr(
       name: l.name || "",
       color: l.color || "",
     })),
+    requested_reviewers: node.reviewRequests
+      ? (node.reviewRequests.nodes || [])
+          .map((r: any) => r?.requestedReviewer?.login ?? r?.requestedReviewer?.name)
+          .filter((x: unknown): x is string => typeof x === "string" && x.length > 0)
+      : undefined,
   };
 }
 

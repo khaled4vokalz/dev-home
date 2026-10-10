@@ -112,6 +112,14 @@ export const SEARCH_MY_PRS_QUERY = `
               }
             }
           }
+          reviewRequests(first: 10) {
+            nodes {
+              requestedReviewer {
+                ... on User { login }
+                ... on Team { name }
+              }
+            }
+          }
         }
       }
     }
@@ -225,6 +233,29 @@ export const PR_BODY_QUERY = `
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $number) {
         body
+      }
+    }
+  }
+`;
+
+/**
+ * PRs the viewer reviewed (Workday "Done since"). Reviews carry submittedAt so
+ * the caller can keep only the viewer's reviews inside the window.
+ */
+export const REVIEWED_SINCE_QUERY = `
+  query ReviewedSince($query: String!, $first: Int!) {
+    search(query: $query, type: ISSUE, first: $first) {
+      nodes {
+        ... on PullRequest {
+          ${PR_BASE_FIELDS}
+          reviews(last: 30) {
+            nodes {
+              state
+              submittedAt
+              author { login }
+            }
+          }
+        }
       }
     }
   }

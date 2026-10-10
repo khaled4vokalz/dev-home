@@ -8,6 +8,7 @@ import {
   getOrgMembers,
   getPrDetail,
   getPrs,
+  getReviewedSince,
   getReviews,
 } from "./index";
 
@@ -269,5 +270,79 @@ describe("required contexts cache", () => {
     });
     await getPrDetail({ owner: "test-org", repo: "app", number: 7 });
     expect(localStorage.getItem(PERSIST_KEY)).toBeNull();
+  });
+});
+
+describe("getMergedPrs since", () => {
+  it("uses the given since in the merged search", async () => {
+    await getMergedPrs({ scope: "user", since: new Date("2026-10-08T00:00:00Z") });
+    const [body] = graphqlBodies();
+    expect(body.variables.query).toContain("merged:>=2026-10-08T00:00:00");
+  });
+});
+
+describe("getReviewedSince", () => {
+  it("keeps the viewer's latest review submitted since `since`", async () => {
+    adapter.mockImplementation(async (config: any) => {
+      if (!String(config.url).endsWith("/graphql")) throw notFound(config);
+      return ok(config, {
+        data: {
+          search: {
+            nodes: [
+              {
+                ...prNode(1),
+                reviews: {
+                  nodes: [
+                    {
+                      state: "COMMENTED",
+                      submittedAt: "2026-10-08T09:00:00Z",
+                      author: { login: "TestUser" },
+                    },
+                    {
+                      state: "APPROVED",
+                      submittedAt: "2026-10-08T12:00:00Z",
+                      author: { login: "testuser" },
+                    },
+                    {
+                      state: "CHANGES_REQUESTED",
+                      submittedAt: "2026-10-09T12:00:00Z",
+                      author: { login: "other" },
+                    },
+                  ],
+                },
+              },
+              {
+                ...prNode(2),
+                reviews: {
+                  nodes: [
+                    {
+                      state: "APPROVED",
+                      submittedAt: "2026-10-01T00:00:00Z",
+                      author: { login: "testuser" },
+                    },
+                  ],
+                },
+              },
+              {
+                ...prNode(3),
+                reviews: {
+                  nodes: [{ state: "PENDING", submittedAt: null, author: { login: "testuser" } }],
+                },
+              },
+            ],
+          },
+        },
+      });
+    });
+
+    const { reviews } = await getReviewedSince(new Date("2026-10-08T00:00:00Z"));
+    const [body] = graphqlBodies();
+    expect(body.variables.query).toBe(
+      "reviewed-by:testuser -author:testuser type:pr updated:>=2026-10-08",
+    );
+    expect(body.variables.first).toBe(50);
+    expect(reviews.map((r) => [r.pr.number, r.state, r.submittedAt])).toEqual([
+      [1, "APPROVED", "2026-10-08T12:00:00Z"],
+    ]);
   });
 });
