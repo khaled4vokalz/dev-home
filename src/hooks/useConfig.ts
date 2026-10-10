@@ -6,6 +6,7 @@ import {
   saveSettings as persistSettings,
   SETTINGS_EVENT,
   AppSettings,
+  getWeekendDays,
 } from "../services/config";
 
 interface UseConfigReturn {
@@ -17,6 +18,7 @@ interface UseConfigReturn {
   githubUsername: string;
   githubOrg: string;
   hiddenTabs: string[];
+  weekendDays: number[];
   saveSettings: (settings: AppSettings) => Promise<void>;
   refreshConfig: () => void;
 }
@@ -57,6 +59,7 @@ export function useConfig(): UseConfigReturn {
     githubUsername: settings.githubUsername,
     githubOrg: settings.githubOrg,
     hiddenTabs: settings.hiddenTabs,
+    weekendDays: getWeekendDays(settings),
     saveSettings,
     refreshConfig: init,
   };

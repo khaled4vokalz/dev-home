@@ -9,6 +9,8 @@ export interface AppSettings {
   githubOrg: string;
   /** Sidebar tab keys the user has hidden. Summary is never included. */
   hiddenTabs: string[];
+  /** Days off, as JS getDay() values (0 = Sun). Absent → DEFAULT_WEEKEND_DAYS. */
+  weekendDays?: number[];
 }
 
 export const SETTINGS_KEY = "dev-home-settings";
@@ -23,6 +25,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   githubOrg: "",
   hiddenTabs: [],
 };
+
+/** Friday + Saturday. */
+export const DEFAULT_WEEKEND_DAYS: number[] = [5, 6];
+
+/** The configured weekend, falling back to the default and dropping invalid days. */
+export function getWeekendDays(s: Pick<AppSettings, "weekendDays">): number[] {
+  if (!Array.isArray(s.weekendDays)) return [...DEFAULT_WEEKEND_DAYS];
+  return s.weekendDays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+}
 
 export function loadSettings(): AppSettings {
   try {

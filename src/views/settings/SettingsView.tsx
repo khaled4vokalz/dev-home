@@ -13,6 +13,7 @@ import { NotificationsCard } from "./NotificationsCard";
 import { ThemePicker } from "./ThemePicker";
 import type { ThemePreference } from "../../hooks/useTheme";
 import { MenuItemsToggle } from "./MenuItemsToggle";
+import { WeekendDaysCard } from "./WeekendDaysCard";
 import { SegmentedTabs } from "../../components/SegmentedTabs";
 import { DataBackupCard } from "./DataBackupCard";
 import "./settings.css";
@@ -275,6 +276,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <>
           <ThemePicker theme={theme} onSelectTheme={onSelectTheme} />
           <MenuItemsToggle formState={formState} setFormState={setFormState} />
+          <WeekendDaysCard formState={formState} setFormState={setFormState} />
         </>
       )}
 
