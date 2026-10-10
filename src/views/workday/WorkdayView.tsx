@@ -57,6 +57,11 @@ const LOOKBACK_LABELS: Record<Lookback, string> = {
   "3d": "3 days",
   "7d": "7 days",
 };
+const DONE_TITLES: Record<Lookback, string> = {
+  workday: "Done since last workday",
+  "3d": "Done in the last 3 days",
+  "7d": "Done in the last 7 days",
+};
 /** Off-sprint not-started rows shown before "Show n more". */
 const OFF_SPRINT_PREVIEW = 3;
 
@@ -298,7 +303,7 @@ export function WorkdayView(props: WorkdayViewProps) {
       <div className="workday">
         <div className="workday-main">
           <WorkdaySection
-            title="Done since last workday"
+            title={DONE_TITLES[lookback]}
             count={done.items.length}
             loading={done.loading}
             error={done.error}

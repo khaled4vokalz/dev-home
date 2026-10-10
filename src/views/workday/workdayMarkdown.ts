@@ -24,10 +24,24 @@ function offSprint(line: string, ticket: TicketRef | null): string {
   return `${line} (off-sprint)`;
 }
 
+/** Drop a leading ticket key (plus separators) from a PR title, e.g. "CCP-1: Fix" → "Fix". */
+function titleWithoutKey(title: string, key: string): string {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return title.replace(new RegExp(`^${escaped}(?!\\d)[:\\s\\-–—]*`, "i"), "");
+}
+
+/** "KEY title" for a PR with a ticket (key not repeated), else just the title. */
+function keyedTitle(pr: GitHubPR, ticket: TicketRef | null): string {
+  if (!ticket) return pr.title;
+  return `${ticket.key} ${titleWithoutKey(pr.title, ticket.key)}`.trim();
+}
+
 /**
  * Slack-ready standup text: *Yesterday* (done), *Today* (working on +
- * reviewing) and *Blockers* (blockers + waiting + note lines). Each PR/ticket
- * appears once, Blockers taking priority over Today; empty headings are dropped.
+ * reviewing) and *Blockers* (blockers + waiting + note lines). Empty headings
+ * are dropped. Today leaves out only what is in the Blockers / needs-attention
+ * section (needs-action / no-reviewer PRs, flagged tickets); PRs that are just
+ * waiting on others stay in Today and also get a Blockers line.
  */
 export function workdayToMarkdown(s: WorkdaySections, noteContent: string, now: Date): string {
   // Yesterday
@@ -36,8 +50,9 @@ export function workdayToMarkdown(s: WorkdaySections, noteContent: string, now: 
   let reviewedAt = -1;
   for (const item of s.done.items) {
     if (item.kind === "merged") {
-      const key = item.ticket ? `${item.ticket.key} ` : "";
-      yesterday.push(offSprint(`Merged ${key}${item.pr.title} (#${item.pr.number})`, item.ticket));
+      yesterday.push(
+        offSprint(`Merged ${keyedTitle(item.pr, item.ticket)} (#${item.pr.number})`, item.ticket),
+      );
     } else if (item.kind === "status") {
       yesterday.push(offSprint(`Moved ${item.ticket.key} to ${item.toStatus}`, item.ticket));
     } else {
@@ -50,7 +65,21 @@ export function workdayToMarkdown(s: WorkdaySections, noteContent: string, now: 
   }
   if (reviewedAt >= 0) yesterday[reviewedAt] = `Reviewed ${reviewed.join(", ")}`;
 
-  // Blockers (computed first so Today can skip what's here)
+  // What the Blockers / needs-attention section holds; Today skips exactly these.
+  const attentionPRs = new Set<string>();
+  const flaggedKeys = new Set<string>();
+  for (const b of s.blockers.items) {
+    if (b.kind === "flagged") flaggedKeys.add(b.ticket.key.toUpperCase());
+    else attentionPRs.add(b.pr.html_url);
+  }
+  // Ticket keys that get a Blockers line from one of their PRs.
+  const prLineKeys = new Set<string>();
+  for (const item of [...s.blockers.items, ...s.waiting.items]) {
+    if (item.kind !== "flagged" && item.kind !== "code-review" && item.ticket)
+      prLineKeys.add(item.ticket.key.toUpperCase());
+  }
+
+  // Blockers
   const blockers: string[] = [];
   const blockedPRs = new Set<string>();
   const blockedKeys = new Set<string>();
@@ -61,8 +90,9 @@ export function workdayToMarkdown(s: WorkdaySections, noteContent: string, now: 
     blockers.push(offSprint(text, ticket));
   };
   const addTicket = (ticket: TicketRef, text: string) => {
-    if (blockedKeys.has(ticket.key)) return;
-    blockedKeys.add(ticket.key);
+    const key = ticket.key.toUpperCase();
+    if (blockedKeys.has(key)) return;
+    blockedKeys.add(key);
     blockers.push(offSprint(text, ticket));
   };
   for (const b of s.blockers.items) {
@@ -76,6 +106,7 @@ export function workdayToMarkdown(s: WorkdaySections, noteContent: string, now: 
   }
   for (const w of s.waiting.items) {
     if (w.kind === "code-review") {
+      if (prLineKeys.has(w.ticket.key.toUpperCase())) continue;
       addTicket(w.ticket, `${w.ticket.key} in Code Review with ${w.reviewers.join(", ")}`);
     } else if (w.kind === "your-move") {
       addPR(w.pr, w.ticket, `${label(w.pr, w.ticket)} #${w.pr.number} approved, ready to merge`);
@@ -96,13 +127,13 @@ export function workdayToMarkdown(s: WorkdaySections, noteContent: string, now: 
   // Today
   const today: string[] = [];
   for (const g of s.workingOn.items) {
-    const prs = g.prs.filter((p) => !blockedPRs.has(p.html_url));
+    const prs = g.prs.filter((p) => !attentionPRs.has(p.html_url));
     if (g.ticket === null) {
       for (const p of prs) today.push(`${p.title} (#${p.number})`);
       continue;
     }
+    if (flaggedKeys.has(g.ticket.key.toUpperCase())) continue;
     if (g.prs.length > 0 && prs.length === 0) continue;
-    if (g.prs.length === 0 && blockedKeys.has(g.ticket.key)) continue;
     const head = `${g.ticket.key} ${g.ticket.summary}`.trim();
     const line =
       prs.length === 0

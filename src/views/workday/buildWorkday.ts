@@ -20,6 +20,12 @@ const OFF_SPRINT_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
 const BLOCKER_REASON_KEYS = new Set(["ci_failed", "conflict", "changes_requested", "reviewed"]);
 
 const isLoading = (p: Part<unknown>) => p.data === null && p.error === null;
+/** Non-null part errors joined with "; ", or null when none failed. */
+const joinErrors = (parts: Part<unknown>[]) =>
+  parts
+    .map((p) => p.error)
+    .filter(Boolean)
+    .join("; ") || null;
 
 /** Jira status category, derived from colour for issues cached before `key` was mapped. */
 export function statusCategoryOf(issue: JiraIssue): StatusCategoryKey {
@@ -212,26 +218,26 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
   notStartedOff.forEach((n) => noteOff(n.ticket));
   done.forEach((d) => noteOff(d.ticket));
 
+  const jiraParts = [extras.sprint, extras.offSprint];
+  const jiraLoading = jiraParts.some(isLoading);
+  const jiraError = joinErrors(jiraParts);
+
   return {
     done: {
       items: done,
       loading: doneParts.some(isLoading),
-      error:
-        doneParts
-          .map((p) => p.error)
-          .filter(Boolean)
-          .join("; ") || null,
+      error: joinErrors(doneParts),
     },
     workingOn: { items: workingOn, loading: false, error: null },
     reviewing: { items: reviewing, loading: false, error: null },
     reviewRequestedUrls: new Set(inp.reviewRequests.map((p) => p.html_url)),
-    blockers: { items: blockers, loading: isLoading(extras.sprint), error: extras.sprint.error },
+    blockers: { items: blockers, loading: jiraLoading, error: jiraError },
     waiting: { items: waiting, loading: false, error: null },
     notStarted: {
       items: notStartedSprint,
       offSprintItems: notStartedOff,
-      loading: isLoading(extras.sprint),
-      error: extras.sprint.error,
+      loading: jiraLoading,
+      error: jiraError,
     },
     offSprintCount: offKeys.size,
   };

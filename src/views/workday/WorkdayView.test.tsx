@@ -118,6 +118,16 @@ describe("WorkdayView", () => {
     expect(screen.getAllByText("Off-sprint").length).toBeGreaterThan(0);
   });
 
+  it("titles the done section after the lookback", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "3 days" }));
+    expect(screen.getByText("Done in the last 3 days")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "7 days" }));
+    expect(screen.getByText("Done in the last 7 days")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Last workday" }));
+    expect(screen.getByText("Done since last workday")).toBeTruthy();
+  });
+
   it("copies the standup markdown and confirms with a toast", async () => {
     const writeText = vi.fn(async () => {});
     Object.assign(navigator, { clipboard: { writeText } });

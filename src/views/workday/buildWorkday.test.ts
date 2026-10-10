@@ -252,6 +252,102 @@ describe("buildWorkday", () => {
     ]);
   });
 
+  it("surfaces off-sprint query errors on notStarted and blockers", () => {
+    const s = buildWorkday(
+      inputs({ extras: { offSprint: { data: null, error: "jql bad" } } }),
+      NOW,
+    );
+    expect(s.notStarted.error).toBe("jql bad");
+    expect(s.blockers.error).toBe("jql bad");
+    const both = buildWorkday(
+      inputs({
+        extras: {
+          sprint: { data: null, error: "sprint down" },
+          offSprint: { data: null, error: "jql bad" },
+        },
+      }),
+      NOW,
+    );
+    expect(both.notStarted.error).toBe("sprint down; jql bad");
+    expect(both.blockers.error).toBe("sprint down; jql bad");
+  });
+
+  it("keeps notStarted and blockers loading until off-sprint data arrives", () => {
+    const s = buildWorkday(inputs({ extras: { offSprint: { data: null, error: null } } }), NOW);
+    expect(s.notStarted.loading).toBe(true);
+    expect(s.blockers.loading).toBe(true);
+  });
+
+  it("leaves PRs in the merge queue out of blockers and waiting", () => {
+    const s = buildWorkday(
+      inputs({
+        openPRs: [
+          pr(1, { title: "AA-1 queued", in_merge_queue: true }),
+          pr(2, { title: "AA-2 queued", in_merge_queue: true, review_status: "APPROVED" }),
+          pr(3, { title: "AA-3 queued", in_merge_queue: true, requested_reviewers: [] }),
+        ],
+      }),
+      NOW,
+    );
+    expect(s.blockers.items).toEqual([]);
+    expect(s.waiting.items).toEqual([]);
+  });
+
+  it("gives conflict and changes-requested blocker reasons", () => {
+    const s = buildWorkday(
+      inputs({
+        openPRs: [
+          pr(1, { title: "AA-1 conflict", has_conflict: true }),
+          pr(2, { title: "AA-2 cr", review_status: "CHANGES_REQUESTED" }),
+          pr(3, { title: "AA-3 both", has_conflict: true, review_status: "CHANGES_REQUESTED" }),
+        ],
+      }),
+      NOW,
+    );
+    expect(
+      s.blockers.items.map((b) => (b.kind === "pr" ? [b.pr.number, b.reasons] : b.kind)),
+    ).toEqual([
+      [1, ["Merge conflict"]],
+      [2, ["Changes requested"]],
+      [3, ["Merge conflict", "Changes requested"]],
+    ]);
+  });
+
+  it("never flags a reviewed PR even when its ticket is off-sprint in Done", () => {
+    const s = buildWorkday(
+      inputs({
+        assignedIssues: [issue("OFF-7", "indeterminate")],
+        extras: {
+          sprint: { data: [], error: null },
+          reviewed: {
+            data: [
+              {
+                pr: pr(30, { title: "OFF-7 theirs", user: { login: "bob", avatar_url: "" } }),
+                state: "APPROVED",
+                submittedAt: "2026-10-10T09:00:00Z",
+              },
+            ],
+            error: null,
+          },
+          doneTickets: {
+            data: [
+              {
+                key: "OFF-7",
+                summary: "Off",
+                toStatus: "In Progress",
+                changedAt: "2026-10-10T08:00:00Z",
+              },
+            ],
+            error: null,
+          },
+        },
+      }),
+      NOW,
+    );
+    const byKind = Object.fromEntries(s.done.items.map((d) => [d.kind, d.ticket?.offSprint]));
+    expect(byKind).toEqual({ reviewed: false, status: true });
+  });
+
   it("merges done items newest first and joins errors", () => {
     const s = buildWorkday(
       inputs({

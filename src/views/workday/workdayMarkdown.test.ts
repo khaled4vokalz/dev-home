@@ -51,7 +51,7 @@ describe("workdayToMarkdown", () => {
         items: [
           {
             kind: "merged",
-            pr: pr(2231, { title: "Fix autosave race" }),
+            pr: pr(2231, { title: "CCP-1187: Fix autosave race" }),
             ticket: t("CCP-1187"),
             at: "2026-10-10T10:00:00Z",
           },
@@ -124,7 +124,7 @@ describe("workdayToMarkdown", () => {
         "• Reviewed CPC-49 (approved), app#2 (changes requested)",
         "",
         "*Today*",
-        "• WMU-402 Delete data — #3318 draft",
+        "• WMU-402 Delete data — #3310 in review, #3318 draft",
         "• CCP-1210 Spike paste (no PR yet)",
         "• CHD-88 Preview links (off-sprint, no PR yet)",
         "• Bump deps (#77)",
@@ -135,6 +135,117 @@ describe("workdayToMarkdown", () => {
         "• WMU-402 #3310 waiting on review from Guru Gayen (2d)",
         "• Need prod access",
         "• ask Abu about CPC-55",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps only needs-attention PRs out of Today", () => {
+    const red = pr(1, { title: "AA-1 red" });
+    const waitingPR = pr(2, { title: "AA-1 waiting" });
+    const s = sections({
+      workingOn: {
+        loading: false,
+        error: null,
+        items: [
+          { ticket: t("AA-1", "Thing"), prs: [red, waitingPR] },
+          { ticket: t("AA-2", "All red"), prs: [pr(3)] },
+        ],
+      },
+      blockers: {
+        loading: false,
+        error: null,
+        items: [
+          { kind: "pr", pr: red, ticket: t("AA-1"), reasons: ["CI failed"] },
+          { kind: "pr", pr: pr(3), ticket: t("AA-2"), reasons: ["Merge conflict"] },
+        ],
+      },
+      waiting: {
+        loading: false,
+        error: null,
+        items: [{ kind: "your-move", pr: waitingPR, ticket: t("AA-1") }],
+      },
+    });
+    expect(workdayToMarkdown(s, "", NOW)).toBe(
+      [
+        "*Today*",
+        "• AA-1 Thing — #2 in review",
+        "",
+        "*Blockers*",
+        "• AA-1 #1 ci failed",
+        "• AA-2 #3 merge conflict",
+        "• AA-1 #2 approved, ready to merge",
+      ].join("\n"),
+    );
+  });
+
+  it("drops a flagged ticket from Today even when it has unblocked PRs", () => {
+    const s = sections({
+      workingOn: {
+        loading: false,
+        error: null,
+        items: [{ ticket: t("FL-1", "Flagged"), prs: [pr(10, { draft: true })] }],
+      },
+      blockers: { loading: false, error: null, items: [{ kind: "flagged", ticket: t("FL-1") }] },
+    });
+    expect(workdayToMarkdown(s, "", NOW)).toBe(["*Blockers*", "• FL-1 flagged in Jira"].join("\n"));
+  });
+
+  it("skips a Code Review line when the ticket already has a PR line in Blockers", () => {
+    const p = pr(20);
+    const s = sections({
+      waiting: {
+        loading: false,
+        error: null,
+        items: [
+          {
+            kind: "awaiting-review",
+            pr: p,
+            ticket: t("CR-1"),
+            reviewers: ["Guru"],
+            since: "2026-10-11T07:00:00Z",
+          },
+          { kind: "code-review", ticket: t("CR-1"), reviewers: ["Guru"] },
+          { kind: "code-review", ticket: t("CR-2"), reviewers: ["Abu"] },
+        ],
+      },
+    });
+    expect(workdayToMarkdown(s, "", NOW)).toBe(
+      [
+        "*Blockers*",
+        "• CR-1 #20 waiting on review from Guru (3h)",
+        "• CR-2 in Code Review with Abu",
+      ].join("\n"),
+    );
+  });
+
+  it("strips a leading ticket key from merged PR titles", () => {
+    const merged = (n: number, title: string, key: string | null) => ({
+      kind: "merged" as const,
+      pr: pr(n, { title }),
+      ticket: key ? t(key) : null,
+      at: "2026-10-10T10:00:00Z",
+    });
+    const s = sections({
+      done: {
+        loading: false,
+        error: null,
+        items: [
+          merged(1, "ccp-1 - lower case dash", "CCP-1"),
+          merged(2, "CCP-2 — em dash", "CCP-2"),
+          merged(3, "CCP-3", "CCP-3"),
+          merged(4, "CCP-40 not mine", "CCP-4"),
+          merged(5, "No ticket", null),
+        ],
+      },
+    });
+    expect(workdayToMarkdown(s, "", NOW)).toBe(
+      [
+        "*Yesterday*",
+        "• Merged CCP-1 lower case dash (#1)",
+        "• Merged CCP-2 em dash (#2)",
+        "• Merged CCP-3 (#3)",
+        "• Merged CCP-4 CCP-40 not mine (#4)",
+        "• Merged No ticket (#5)",
       ].join("\n"),
     );
   });
