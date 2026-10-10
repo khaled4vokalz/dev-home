@@ -39,6 +39,7 @@ export function isRemoteSource(s: DataSource): boolean {
  */
 const TAB_SOURCES: Record<string, DataSource[]> = {
   summary: ["openPRs", "reviewRequests", "jiraIssues", "jiraComments", "githubMentions", "notes"],
+  workday: ["openPRs", "reviewRequests", "jiraIssues", "notes"], // Plus its own lazy extras (useWorkdayExtras), refetched on refreshKey.
   focus: [
     "openPRs",
     "reviewRequests",
@@ -73,6 +74,7 @@ const TAB_SOURCES: Record<string, DataSource[]> = {
  * their own in-page refresh controls.
  */
 export const PAGE_REFRESH: Record<string, { sources: DataSource[]; label: string }> = {
+  workday: { sources: ["openPRs", "reviewRequests", "jiraIssues"], label: "Refresh workday" },
   prs: { sources: ["openPRs"], label: "Refresh my PRs" },
   reviews: { sources: ["reviewRequests"], label: "Refresh reviews" },
   "github-mentions": { sources: ["githubMentions"], label: "Refresh comments" },

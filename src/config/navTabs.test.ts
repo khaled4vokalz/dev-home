@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { isTabVisible } from "./navTabs";
+import { isTabVisible, NAV_GROUPS } from "./navTabs";
+import { sourcesFor, PAGE_REFRESH } from "./tabData";
 
 const ctx = { hiddenTabs: [] as string[], githubOrg: "acme" };
 
@@ -22,5 +23,23 @@ describe("isTabVisible", () => {
       expect(isTabVisible(key, { ...ctx, githubOrg: "" })).toBe(false);
     }
     expect(isTabVisible("prs", { ...ctx, githubOrg: "" })).toBe(true);
+  });
+});
+
+describe("workday tab", () => {
+  it("sits right after Summary and is toggleable", () => {
+    expect(NAV_GROUPS[0].tabs.map((t) => t.key).slice(0, 2)).toEqual(["summary", "workday"]);
+    expect(isTabVisible("workday", ctx)).toBe(true);
+    expect(isTabVisible("workday", { ...ctx, hiddenTabs: ["workday"] })).toBe(false);
+  });
+
+  it("loads the reused dashboard sources and has a page refresh", () => {
+    expect(sourcesFor("workday", { boardEnabled: false })).toEqual([
+      "openPRs",
+      "reviewRequests",
+      "jiraIssues",
+      "notes",
+    ]);
+    expect(PAGE_REFRESH.workday.sources).toEqual(["openPRs", "reviewRequests", "jiraIssues"]);
   });
 });

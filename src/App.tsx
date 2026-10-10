@@ -83,6 +83,9 @@ const TeamDashboardView = lazy(() =>
 const PomodoroView = lazy(() =>
   import("./views/pomodoro/PomodoroView").then((m) => ({ default: m.PomodoroView })),
 );
+const WorkdayView = lazy(() =>
+  import("./views/workday/WorkdayView").then((m) => ({ default: m.WorkdayView })),
+);
 
 const viewFallback = (
   <div className="d-flex justify-content-center py-5">
@@ -137,6 +140,7 @@ export default function App() {
     githubUsername,
     githubOrg,
     hiddenTabs,
+    weekendDays,
     saveSettings,
   } = useConfig();
 
@@ -490,6 +494,7 @@ export default function App() {
               // Runtime per-tab metadata (icons + live counts) keyed by tab key.
               const tabMeta: Record<string, { icon: Icon }> = {
                 summary: { icon: IconLayoutDashboard },
+                workday: { icon: IconSun },
                 focus: { icon: IconTarget },
                 board: { icon: IconColumns3 },
                 notes: { icon: IconNotes },
@@ -653,6 +658,24 @@ export default function App() {
                           setShowNoteEditor(true);
                         }}
                         doneItemIds={doneItemIds}
+                      />
+                    )}
+                    {effectiveTab === "workday" && (
+                      <WorkdayView
+                        configured={configured}
+                        openPRs={openPRs}
+                        reviewRequests={reviewRequests}
+                        reviewingPRs={reviewingPRs}
+                        assignedIssues={assignedJiraIssues}
+                        allIssues={jiraIssues}
+                        loading={openPRsLoading || reviewRequestsLoading || jiraIssuesLoading}
+                        jiraBaseUrl={jiraBaseUrl}
+                        weekendDays={weekendDays}
+                        refreshKey={refreshKey}
+                        onRefresh={() => refresh(PAGE_REFRESH.workday.sources)}
+                        notes={notes}
+                        addNote={addNote}
+                        editNote={editNote}
                       />
                     )}
                     {effectiveTab === "focus" && (
