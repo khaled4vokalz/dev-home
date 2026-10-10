@@ -16,7 +16,6 @@ export const MY_PR_FIELDS: PRCardFields = {
 export const REVIEW_PR_FIELDS: PRCardFields = {
   ...MY_PR_FIELDS,
   showAuthor: true,
-  showBranch: false,
   showStatus: false,
 };
 
@@ -33,6 +32,8 @@ interface TicketGroupListProps {
   jiraBaseUrl: string;
   /** Optional trailing label per PR row (e.g. "Review requested"). */
   rowSuffix?: (pr: GitHubPR) => React.ReactNode;
+  onCopyBranch?: (branch: string) => void;
+  onCopyLink?: (url: string) => void;
 }
 
 /**
@@ -40,7 +41,14 @@ interface TicketGroupListProps {
  * header (even single-PR ones) so ticket context is always visible, and
  * ticket-only groups render as a "No PR yet" header with no rows.
  */
-export function TicketGroupList({ groups, fields, jiraBaseUrl, rowSuffix }: TicketGroupListProps) {
+export function TicketGroupList({
+  groups,
+  fields,
+  jiraBaseUrl,
+  rowSuffix,
+  onCopyBranch,
+  onCopyLink,
+}: TicketGroupListProps) {
   return (
     <>
       {groups.map((g) => (
@@ -66,7 +74,15 @@ export function TicketGroupList({ groups, fields, jiraBaseUrl, rowSuffix }: Tick
           </div>
           {g.prs.map((pr) => (
             <div key={pr.id} className="workday-pr-row">
-              <PRCard pr={pr} fields={fields} jiraBaseUrl={jiraBaseUrl} clustered onOpen={openPR} />
+              <PRCard
+                pr={pr}
+                fields={fields}
+                jiraBaseUrl={jiraBaseUrl}
+                clustered
+                onOpen={openPR}
+                onCopyBranch={onCopyBranch}
+                onCopyLink={onCopyLink}
+              />
               {rowSuffix && <span className="workday-row-suffix">{rowSuffix(pr)}</span>}
             </div>
           ))}

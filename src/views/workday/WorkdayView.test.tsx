@@ -319,3 +319,23 @@ describe("Reviewing state pills", () => {
     expect(requested.className).toContain("workday-review-pill");
   });
 });
+
+describe("PR row copy buttons", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("copies a PR's link and branch name with a toast", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderView();
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Copy PR link" })[0]);
+    });
+    expect(writeText).toHaveBeenLastCalledWith("https://github.com/o/r/pull/3310");
+    expect(screen.getByRole("status").textContent).toBe("Copied PR link to clipboard");
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Copy branch name" })[0]);
+    });
+    expect(writeText).toHaveBeenLastCalledWith("WMU-402");
+    expect(screen.getByRole("status").textContent).toBe("Copied branch name to clipboard");
+  });
+});

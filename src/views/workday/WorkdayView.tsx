@@ -243,14 +243,17 @@ export function WorkdayView(props: WorkdayViewProps) {
     [filtered, noteText, now],
   );
 
-  const copy = async () => {
+  const copyText = async (text: string, confirmation: string) => {
     try {
-      await navigator.clipboard.writeText(markdown);
-      toast.show("Standup copied");
+      await navigator.clipboard.writeText(text);
+      toast.show(confirmation);
     } catch {
       toast.show("Couldn't copy to clipboard");
     }
   };
+  const copy = () => copyText(markdown, "Standup copied");
+  const copyBranch = (branch: string) => copyText(branch, "Copied branch name to clipboard");
+  const copyLink = (url: string) => copyText(url, "Copied PR link to clipboard");
 
   if (!configured) {
     return (
@@ -346,6 +349,8 @@ export function WorkdayView(props: WorkdayViewProps) {
               groups={workingOn.items}
               fields={MY_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
+              onCopyBranch={copyBranch}
+              onCopyLink={copyLink}
             />
           </WorkdaySection>
 
@@ -361,6 +366,8 @@ export function WorkdayView(props: WorkdayViewProps) {
               groups={reviewing.items}
               fields={REVIEW_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
+              onCopyBranch={copyBranch}
+              onCopyLink={copyLink}
               rowSuffix={(pr) =>
                 filtered.reviewRequestedUrls.has(pr.html_url) ? (
                   <Badge variant="warning" className="workday-review-pill">
