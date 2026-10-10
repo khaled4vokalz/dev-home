@@ -1,0 +1,257 @@
+import type { GitHubPR, JiraIssue, StatusCategoryKey } from "../../types";
+import { groupByTicket, ticketKeyOf } from "../../utils/tickets";
+import { ACTIONABLE_REASONS, categorizeOpenPR } from "../../utils/prCategories";
+import type { Part } from "../../services/workday";
+import type {
+  BlockerItem,
+  DoneItem,
+  NotStartedItem,
+  SprintFilter,
+  TicketGroup,
+  TicketRef,
+  WaitingItem,
+  WorkdayInputs,
+  WorkdaySections,
+} from "./types";
+
+/** Off-sprint not-started tickets older than this are left out. */
+const OFF_SPRINT_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
+/** Actionable reasons that make an open PR a blocker (the rest are softer nudges). */
+const BLOCKER_REASON_KEYS = new Set(["ci_failed", "conflict", "changes_requested", "reviewed"]);
+
+const isLoading = (p: Part<unknown>) => p.data === null && p.error === null;
+
+/** Jira status category, derived from colour for issues cached before `key` was mapped. */
+export function statusCategoryOf(issue: JiraIssue): StatusCategoryKey {
+  const cat = issue.status?.statusCategory;
+  if (cat?.key) return cat.key;
+  if (cat?.colorName === "yellow") return "indeterminate";
+  if (cat?.colorName === "green") return "done";
+  return "new";
+}
+
+/** Compose the Workday sections from dashboard data plus the workday extras. */
+export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
+  const { extras } = inp;
+
+  const assigned = new Map<string, JiraIssue>();
+  for (const i of inp.assignedIssues) assigned.set(i.key.toUpperCase(), i);
+  for (const i of extras.offSprint.data ?? []) {
+    if (!assigned.has(i.key.toUpperCase())) assigned.set(i.key.toUpperCase(), i);
+  }
+
+  const sprintData = extras.sprint.data;
+  const sprintByKey = new Map((sprintData ?? []).map((t) => [t.key.toUpperCase(), t]));
+  const isOffSprint = (key: string) =>
+    sprintData !== null && assigned.has(key.toUpperCase()) && !sprintByKey.has(key.toUpperCase());
+
+  const lookup = new Map<string, { summary: string; statusName: string | null }>();
+  for (const t of sprintData ?? [])
+    lookup.set(t.key.toUpperCase(), { summary: t.summary, statusName: t.status.name });
+  for (const i of [...assigned.values(), ...inp.allIssues]) {
+    lookup.set(i.key.toUpperCase(), { summary: i.summary, statusName: i.status?.name ?? null });
+  }
+
+  const ref = (key: string, flaggable = true): TicketRef => {
+    const info = lookup.get(key.toUpperCase());
+    return {
+      key,
+      summary: info?.summary ?? "",
+      statusName: info?.statusName ?? null,
+      offSprint: flaggable && isOffSprint(key),
+    };
+  };
+  const prRef = (pr: GitHubPR, flaggable = true) => {
+    const key = ticketKeyOf(pr);
+    return key ? ref(key, flaggable) : null;
+  };
+
+  const prTicketKeys = new Set(
+    inp.openPRs
+      .map(ticketKeyOf)
+      .filter((k): k is string => !!k)
+      .map((k) => k.toUpperCase()),
+  );
+
+  // Working on: my PRs grouped by ticket, then in-progress tickets with no PR, then "No ticket".
+  const prGroups = groupByTicket(inp.openPRs);
+  const workingOn: TicketGroup[] = prGroups
+    .filter((g) => g.ticket !== null)
+    .map((g) => ({ ticket: ref(g.ticket!), prs: g.prs }));
+  for (const issue of assigned.values()) {
+    if (statusCategoryOf(issue) === "indeterminate" && !prTicketKeys.has(issue.key.toUpperCase())) {
+      workingOn.push({ ticket: ref(issue.key), prs: [] });
+    }
+  }
+  const noTicket = prGroups.filter((g) => g.ticket === null).flatMap((g) => g.prs);
+  if (noTicket.length > 0) workingOn.push({ ticket: null, prs: noTicket });
+
+  // Reviewing: requested ∪ reviewing, deduped by URL; never off-sprint.
+  const seen = new Set<string>();
+  const reviewPRs = [...inp.reviewRequests, ...inp.reviewingPRs].filter((p) => {
+    if (seen.has(p.html_url)) return false;
+    seen.add(p.html_url);
+    return true;
+  });
+  const reviewing: TicketGroup[] = groupByTicket(reviewPRs).map((g) => ({
+    ticket: g.ticket ? ref(g.ticket, false) : null,
+    prs: g.prs,
+  }));
+
+  // Blockers and waiting.
+  const blockers: BlockerItem[] = [];
+  const waiting: WaitingItem[] = [];
+  for (const pr of inp.openPRs) {
+    if (pr.draft) continue;
+    const category = categorizeOpenPR(pr);
+    const ticket = prRef(pr);
+    if (category === "needs-action") {
+      const reasons = ACTIONABLE_REASONS.filter(
+        (r) => BLOCKER_REASON_KEYS.has(r.key) && r.matches(pr),
+      ).map((r) => r.label);
+      if (reasons.length > 0) blockers.push({ kind: "pr", pr, ticket, reasons });
+      continue;
+    }
+    if (category === "pending") {
+      if (
+        Array.isArray(pr.requested_reviewers) &&
+        pr.requested_reviewers.length === 0 &&
+        !pr.review_status
+      ) {
+        blockers.push({ kind: "pr", pr, ticket, reasons: ["No reviewer requested"] });
+      } else {
+        waiting.push({
+          kind: "awaiting-review",
+          pr,
+          ticket,
+          reviewers: pr.requested_reviewers ?? [],
+          since: pr.created_at,
+        });
+      }
+      continue;
+    }
+    if (pr.review_status === "APPROVED" && !pr.in_merge_queue) {
+      waiting.push({ kind: "your-move", pr, ticket });
+    }
+  }
+  const flaggedKeys = new Set<string>();
+  for (const t of sprintData ?? []) if (t.flagged) flaggedKeys.add(t.key.toUpperCase());
+  for (const t of extras.offSprint.data ?? []) if (t.flagged) flaggedKeys.add(t.key.toUpperCase());
+  for (const issue of assigned.values()) {
+    if (flaggedKeys.has(issue.key.toUpperCase()))
+      blockers.push({ kind: "flagged", ticket: ref(issue.key) });
+  }
+  for (const issue of assigned.values()) {
+    const reviewers = (issue.codeReviewers ?? []).map((r) => r.displayName).filter(Boolean);
+    if (/code review/i.test(issue.status?.name ?? "") && reviewers.length > 0) {
+      waiting.push({ kind: "code-review", ticket: ref(issue.key), reviewers });
+    }
+  }
+
+  // Done since.
+  const done: DoneItem[] = [
+    ...(extras.merged.data ?? []).map(
+      (pr): DoneItem => ({
+        kind: "merged",
+        pr,
+        ticket: prRef(pr),
+        at: pr.merged_at ?? pr.updated_at,
+      }),
+    ),
+    ...(extras.reviewed.data ?? []).map(
+      (r): DoneItem => ({
+        kind: "reviewed",
+        pr: r.pr,
+        ticket: prRef(r.pr, false),
+        state: r.state,
+        at: r.submittedAt,
+      }),
+    ),
+    ...(extras.doneTickets.data ?? []).map((t): DoneItem => {
+      if (!lookup.has(t.key.toUpperCase()))
+        lookup.set(t.key.toUpperCase(), { summary: t.summary, statusName: t.toStatus });
+      return { kind: "status", ticket: ref(t.key), toStatus: t.toStatus, at: t.changedAt };
+    }),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  const doneParts = [extras.merged, extras.reviewed, extras.doneTickets];
+
+  // Not started.
+  const notStartedSprint: NotStartedItem[] = [];
+  const notStartedOff: NotStartedItem[] = [];
+  const cutoff = now.getTime() - OFF_SPRINT_WINDOW_MS;
+  const newIssues = [...assigned.values()].filter(
+    (i) => statusCategoryOf(i) === "new" && !prTicketKeys.has(i.key.toUpperCase()),
+  );
+  for (const issue of newIssues) {
+    const sprint = sprintByKey.get(issue.key.toUpperCase());
+    const item: NotStartedItem = {
+      ticket: ref(issue.key),
+      sprintName: sprint?.sprintName ?? null,
+      points: sprint?.points ?? null,
+      updated: issue.updated ?? null,
+    };
+    if (!item.ticket.offSprint) notStartedSprint.push(item);
+    else if (issue.updated && new Date(issue.updated).getTime() >= cutoff) notStartedOff.push(item);
+  }
+  if (sprintData) {
+    const order = new Map(sprintData.map((t, idx) => [t.key.toUpperCase(), idx]));
+    notStartedSprint.sort(
+      (a, b) =>
+        (order.get(a.ticket.key.toUpperCase()) ?? 0) - (order.get(b.ticket.key.toUpperCase()) ?? 0),
+    );
+  }
+  notStartedOff.sort(
+    (a, b) => new Date(b.updated ?? 0).getTime() - new Date(a.updated ?? 0).getTime(),
+  );
+
+  const offKeys = new Set<string>();
+  const noteOff = (t: TicketRef | null) => t?.offSprint && offKeys.add(t.key.toUpperCase());
+  workingOn.forEach((g) => noteOff(g.ticket));
+  blockers.forEach((b) => noteOff(b.ticket));
+  waiting.forEach((w) => noteOff(w.ticket));
+  notStartedOff.forEach((n) => noteOff(n.ticket));
+
+  return {
+    done: {
+      items: done,
+      loading: doneParts.some(isLoading),
+      error:
+        doneParts
+          .map((p) => p.error)
+          .filter(Boolean)
+          .join("; ") || null,
+    },
+    workingOn: { items: workingOn, loading: false, error: null },
+    reviewing: { items: reviewing, loading: false, error: null },
+    reviewRequestedUrls: new Set(inp.reviewRequests.map((p) => p.html_url)),
+    blockers: { items: blockers, loading: isLoading(extras.sprint), error: extras.sprint.error },
+    waiting: { items: waiting, loading: false, error: null },
+    notStarted: {
+      items: notStartedSprint,
+      offSprintItems: notStartedOff,
+      loading: isLoading(extras.sprint),
+      error: extras.sprint.error,
+    },
+    offSprintCount: offKeys.size,
+  };
+}
+
+/** Apply the header's sprint filter. "all" returns the same object. */
+export function filterWorkday(s: WorkdaySections, filter: SprintFilter): WorkdaySections {
+  if (filter === "all") return s;
+  const keep = (item: { ticket?: TicketRef | null }) =>
+    filter === "sprint" ? item.ticket?.offSprint !== true : item.ticket?.offSprint === true;
+  return {
+    ...s,
+    done: { ...s.done, items: s.done.items.filter(keep) },
+    workingOn: { ...s.workingOn, items: s.workingOn.items.filter(keep) },
+    reviewing: { ...s.reviewing, items: s.reviewing.items.filter(keep) },
+    blockers: { ...s.blockers, items: s.blockers.items.filter(keep) },
+    waiting: { ...s.waiting, items: s.waiting.items.filter(keep) },
+    notStarted: {
+      ...s.notStarted,
+      items: filter === "off" ? [] : s.notStarted.items,
+      offSprintItems: filter === "sprint" ? [] : s.notStarted.offSprintItems,
+    },
+  };
+}
