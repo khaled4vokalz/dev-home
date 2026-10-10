@@ -362,7 +362,15 @@ export function WorkdayView(props: WorkdayViewProps) {
               fields={REVIEW_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
               rowSuffix={(pr) =>
-                filtered.reviewRequestedUrls.has(pr.html_url) ? "Review requested" : "Reviewed"
+                filtered.reviewRequestedUrls.has(pr.html_url) ? (
+                  <Badge variant="warning" className="workday-review-pill">
+                    Review requested
+                  </Badge>
+                ) : (
+                  <Badge variant="info" className="workday-review-pill">
+                    Reviewed
+                  </Badge>
+                )
               }
             />
           </WorkdaySection>

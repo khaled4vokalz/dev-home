@@ -227,10 +227,15 @@ a.workday-row-title:hover {
 
 .workday-row-suffix {
   flex-shrink: 0;
-  color: var(--color-text-muted);
-  font-size: 0.6875rem;
   padding-right: var(--space-4);
   white-space: nowrap;
+}
+
+/* Fixed width so the review state lines up as a column down the section. */
+.workday-review-pill {
+  display: inline-block;
+  width: 8.5rem;
+  text-align: center;
 }
 
 .workday-pill {

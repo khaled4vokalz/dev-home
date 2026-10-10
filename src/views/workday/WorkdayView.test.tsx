@@ -295,3 +295,27 @@ describe("WorkdaySection", () => {
     expect(screen.getByText("row one")).toBeTruthy();
   });
 });
+
+describe("Reviewing state pills", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("marks requested reviews and already-reviewed PRs with distinct pills", () => {
+    const other = (n: number, url: string): GitHubPR => ({
+      ...prs[0],
+      id: n,
+      number: n,
+      title: `CPC-${n} change`,
+      html_url: url,
+      user: { login: "abu", avatar_url: "" },
+    });
+    renderView({
+      reviewRequests: [other(49, "https://github.com/o/r/pull/49")],
+      reviewingPRs: [other(55, "https://github.com/o/r/pull/55")],
+    });
+    const requested = screen.getByText("Review requested");
+    const reviewed = screen.getByText("Reviewed");
+    expect(requested.className).toContain("badge-status--warning");
+    expect(reviewed.className).toContain("badge-status--info");
+    expect(requested.className).toContain("workday-review-pill");
+  });
+});
