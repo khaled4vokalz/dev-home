@@ -49,6 +49,7 @@ export function NoteCard({
   const url = getReferenceUrl(note, jiraBaseUrl);
   const title = getNoteDisplayTitle(note);
   const isPinned = note.pinned === 1;
+  const badge = noteBadge(note);
   const reminder = note.remind_at ? describeReminder(note.remind_at) : null;
   // Alert styling only while the note is still actionable (unresolved).
   const reminderIsAlerting = reminder?.overdue === true && note.resolved === 0;
@@ -98,7 +99,7 @@ export function NoteCard({
         </div>
 
         <div className="d-flex align-items-center gap-2 mt-auto pt-3">
-          <Badge variant={noteBadge(note).variant}>{noteBadge(note).label}</Badge>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
           <span
             className="text-secondary-custom"
             style={{ fontSize: "0.6875rem", whiteSpace: "nowrap" }}

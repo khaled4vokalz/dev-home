@@ -49,10 +49,12 @@ export function mapIssue(issue: any, opts: { withDetail?: boolean } = {}): any {
     project: { key: f.project?.key, name: f.project?.name },
     created: f.created,
     updated: f.updated,
-    codeReviewers: (f[CODE_REVIEWERS_FIELD] ?? []).map((u: any) => ({
-      displayName: u.displayName,
-      avatarUrls: u.avatarUrls,
-    })),
+    codeReviewers: (Array.isArray(f[CODE_REVIEWERS_FIELD]) ? f[CODE_REVIEWERS_FIELD] : []).map(
+      (u: any) => ({
+        displayName: u.displayName,
+        avatarUrls: u.avatarUrls,
+      }),
+    ),
   };
   if (opts.withDetail) {
     mapped.description = adfToMarkdown(f.description);

@@ -10,6 +10,8 @@ import {
   mapIssue,
 } from "./issues";
 
+/** Upper bound on sprint tickets (single page). */
+const MAX_SPRINT = 100;
 /** Upper bound on off-sprint tickets fetched across pages. */
 const MAX_OFF_SPRINT = 200;
 /** Upper bound on "done since" tickets. */
@@ -32,7 +34,7 @@ export async function getSprintTickets(signal?: AbortSignal): Promise<{ tickets:
   const fields = ["summary", "status", SPRINT_FIELD, STORY_POINTS_FIELD, FLAGGED_FIELD];
   const { data } = await jiraClient().post(
     "/search/jql",
-    { jql, fields, maxResults: 100 },
+    { jql, fields, maxResults: MAX_SPRINT },
     { signal },
   );
   const tickets = (data.issues || []).map((issue: any): SprintTicket => {

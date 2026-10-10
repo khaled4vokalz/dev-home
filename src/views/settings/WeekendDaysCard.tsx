@@ -28,7 +28,7 @@ export const WeekendDaysCard: React.FC<WeekendDaysCardProps> = ({ formState, set
     setFormState((prev) => {
       const current = getWeekendDays(prev);
       const next = off ? [...current, day] : current.filter((d) => d !== day);
-      return { ...prev, weekendDays: [...new Set(next)].sort() };
+      return { ...prev, weekendDays: [...new Set(next)].sort((a, b) => a - b) };
     });
   };
 

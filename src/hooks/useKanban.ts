@@ -287,14 +287,15 @@ export function useKanban({
         if (!note) return null;
         const noteUrl = getReferenceUrl(note, jiraBase);
         const noteTitle = getNoteDisplayTitle(note);
+        const badge = noteBadge(note);
         return {
           kanbanItem: ki,
           note,
           title: noteTitle,
           subtitle: note.content || "",
           url: noteUrl || "",
-          sourceBadge: noteBadge(note).label,
-          sourceBadgeVariant: noteBadge(note).variant,
+          sourceBadge: badge.label,
+          sourceBadgeVariant: badge.variant,
           timestamp: note.updated_at,
         };
       }
