@@ -1,0 +1,227 @@
+# Workday (standup) page — design
+
+Date: 2026-10-11
+Status: approved in brainstorming, pending spec review
+
+## Goal
+
+A single **Workday** sidebar tab that holds everything needed for a daily
+standup update and stays useful for the rest of the day: what I finished since
+the last workday, what I'm working on (own PRs + reviews), what's blocking or
+waiting, what's assigned but not started, and what I'm carrying outside the
+sprint. A **Copy standup** button produces Slack-ready markdown.
+
+Mockup: `.superpowers/brainstorm/5861-1791656252/content/workday.html`
+(gitignored; regenerate from this spec if lost).
+
+## Decisions
+
+| Topic | Decision |
+|---|---|
+| Use case | Read on screen during standup **and** copy as Slack markdown |
+| Placement | New sidebar tab **Workday** only (no Summary button) |
+| "In sprint" | Ticket is in **any open sprint** (`sprint in openSprints()`); no board config |
+| Outside sprint window | Tickets updated in the **last 60 days** |
+| Weekend | Configurable in Settings, **default Friday + Saturday** |
+| Data approach | **A** — compose client-side from existing dashboard sources + one new lazy `workday` source |
+| Notes | Real notes in the existing notes store, new note type **`standup`**, shown everywhere with a "Standup" badge |
+
+## Page layout
+
+Two columns: sections on the left, notes + copy preview on the right.
+Header: title, today's date pill, "Since <last workday start>" subtitle,
+**Refresh**, **Copy standup** (primary).
+
+Sections, top to bottom:
+
+1. **Done since last workday** — lookback toggle: *Last workday* (default) /
+   *3 days* / *7 days* (persisted in localStorage). Rows, newest first:
+   - my PRs merged since `since` (pill "Merged");
+   - reviews I submitted on others' PRs since `since` (latest per PR; pill
+     "Approved" / "Changes requested" / "Commented");
+   - Jira tickets whose status I changed since `since` (pill "To <status>").
+2. **Working on** — same ticket grouping as My PRs (`groupByTicket`; group
+   header = ticket key, summary, Jira status, PR count; PR rows nested).
+   Contains:
+   - my open PRs (`openPRs`), grouped by `ticketKeyOf`;
+   - assigned tickets with status category *indeterminate* (In Progress,
+     Code Review, …) that have no open PR of mine — rendered as a group header
+     only, with a dashed **"No PR yet"** pill;
+   - PRs without a ticket key under a "No ticket" group.
+   Only tickets in an open sprint, or tickets referenced by my open PRs, appear
+   here; other in-progress tickets go to *Outside the sprint*.
+3. **Reviewing** — union of `reviewRequests` and `reviewingPRs` (deduped by PR
+   URL), grouped by ticket. Rows show author, "review requested" vs "you
+   requested changes" (+ "author pushed since" when the head commit is newer
+   than my last review), and waiting time.
+4. **Blockers / needs attention** — my open PRs whose `categorizeOpenPR`
+   result is `needs-action` (failing checks, changes requested, conflicts), my
+   non-draft PRs with no reviewer requested, and assigned tickets with Jira
+   **Flagged** (`customfield_10021`) set.
+5. **Waiting on others** — my non-draft open PRs awaiting review (with age
+   since review requested / opened) and approved-but-unmerged PRs ("your
+   move"); assigned tickets in status *Code Review* show their Jira **Code
+   Reviewers** (`customfield_10324`, already mapped to
+   `JiraIssue.codeReviewers`).
+6. **Assigned, not started** — tickets in an open sprint with status category
+   *new*; shows sprint name and story points (`customfield_10127`).
+7. **Outside the sprint** — assigned, unresolved, not in any open sprint,
+   updated within 60 days; shows status, "No PR" pill when I have no open PR
+   for it, and last-updated age. A ticket here that has my open PR also shows
+   in *Working on* (via the PR) — the overlap is intentional.
+
+Right column:
+
+- **Notes for today** — textarea bound to today's standup note (below).
+- **Copy preview** — live rendering of the markdown that Copy standup puts on
+  the clipboard.
+
+A PR may appear in more than one section on screen (e.g. Working on +
+Blockers); that is intentional. The copied text deduplicates.
+
+## Data
+
+### Reused (already loaded/cached by `useDashboard`)
+
+- `openPRs` → Working on, Blockers, Waiting.
+- `reviewRequests`, `reviewingPRs` → Reviewing.
+- `assignedJiraIssues` → ticket summaries/status, no-PR tickets,
+  `codeReviewers`.
+
+`tabData.ts` registers the Workday tab against these existing sources plus the
+new `workday` source, so `ensure()` lazy-loading and the scoped Refresh work
+unchanged.
+
+### New `workday` source (lazy — fetched only when the tab is opened)
+
+Jira (server-proxied, like all Jira calls):
+
+1. **Sprint membership** —
+   `assignee = currentUser() AND sprint in openSprints() AND statusCategory != Done`;
+   fields: `summary, status, customfield_10020 (Sprint), customfield_10127
+   (Story Points), customfield_10021 (Flagged), customfield_10324`.
+   Returns per key: sprint name (active one), points, status category, flagged.
+2. **Outside sprint** —
+   `assignee = currentUser() AND resolution = Unresolved AND (sprint is EMPTY OR sprint not in openSprints()) AND updated >= -60d ORDER BY updated DESC`;
+   `BASE_ISSUE_FIELDS` + flagged. Paginate with `nextPageToken`, cap 200.
+3. **Done since** —
+   `status CHANGED BY currentUser() AFTER "<since yyyy-MM-dd HH:mm>" ORDER BY updated DESC`
+   with `expand=changelog` limited to the last status change by me after
+   `since`; returns key, summary, `toStatus`, `changedAt`. Cap 50.
+
+Sprint/points/flagged custom-field IDs are site-wide on optimizely-ext and are
+hardcoded alongside `CODE_REVIEWERS_FIELD` in `src/api/jira/issues.ts`.
+
+GitHub (client-side):
+
+4. **Merged** — existing `fetchRecentlyMergedPRs("user", since)`.
+5. **Reviewed** — GraphQL search `is:pr reviewed-by:@me -author:@me updated:>=<since date>`,
+   selecting each PR's reviews by the viewer with `submittedAt`/`state`; keep
+   PRs with a viewer review submitted at or after `since`, latest state per PR.
+   Cap 50.
+
+Each sub-request resolves independently; a failure is recorded per section and
+does not fail the whole source.
+
+### `mapIssue` change
+
+Add `status.statusCategory.key` (`new` | `indeterminate` | `done`) to the
+mapped shape and to `JiraIssue`, so "not started" / "in progress" use Jira's
+category rather than colour.
+
+### Composition
+
+Pure function `buildWorkday(inputs, now, settings) → WorkdaySections` in
+`src/utils/workday.ts` (or `src/views/workday/buildWorkday.ts`). Inputs are the
+reused dashboard arrays plus the `workday` source result; output is the seven
+sections in display order, each with `items` and an optional `error`.
+
+Pure function `lastWorkdayStart(now, weekendDays) → Date`: local midnight at
+the start of the most recent day before `now` that is not a weekend day.
+Lookback toggle values map to `since` = `lastWorkdayStart`, `now − 3d`,
+`now − 7d` (local midnight).
+
+## Settings
+
+New config field `weekendDays: number[]` (JS `getDay()` values), default
+`[5, 6]` (Fri, Sat). Edited in Settings → General as seven day toggles. Stored
+with the rest of the config in `services/config.ts`.
+
+## Standup notes
+
+- New `NoteType` **`standup`**; add to `VALID_TYPES` in
+  `src/services/notes.ts`. `reference_id` is required:
+  `standup:YYYY-MM-DD` (local date). Title: `Standup · Sun 11 Oct`.
+- Workday finds today's note by `reference_id`. The note is created on the
+  first keystroke (no empty notes for days with nothing typed) and saved
+  debounced (~600 ms) via `updateNote`.
+- Standup notes appear everywhere notes do (Notes, Summary, Focus, Kanban)
+  and are never auto-resolved.
+- Badge logic is centralised: new `noteBadge(note) → { label, variant }` in
+  `src/utils/` replaces the duplicated type→badge mapping in `App.tsx:371`,
+  `useKanban.ts:296`, `KanbanBoard.tsx:275` and the type branches in
+  `utils/text.ts`. `standup` → label **"Standup"**, purple variant.
+
+## Copy standup
+
+Pure function `workdayToMarkdown(sections, noteContent) → string`:
+
+```
+*Yesterday*
+• Merged CCP-1187 Fix autosave race (#2231)
+• Moved WMU-402 to Code Review
+• Reviewed CPC-49 (approved), DAM-612 (changes requested)
+
+*Today*
+• WMU-402 Delete mwr v2 prod data — #3310 in review, #3318 draft
+• CCP-1210 Spike: rich-text paste handler (no PR yet)
+• Reviewing DAM-640, CPC-55
+
+*Blockers*
+• CCP-1190 flagged in Jira
+• WMU-402 #3310 waiting on review from Guru Gayen (2d)
+• <each non-empty line of today's standup note>
+```
+
+- *Yesterday* = section 1. *Today* = sections 2 + 3. *Blockers* = sections
+  4 + 5 + note lines.
+- Each ticket/PR appears once, at its highest-priority placement:
+  Blockers > Today. Empty headings are omitted.
+- Not-started and outside-sprint sections are not included.
+- Clipboard write confirms with the bottom-fixed toast (no inline alert).
+
+## Navigation wiring
+
+- `NAV_GROUPS` (`src/config/navTabs.ts`): add `{ key: "workday", label: "Workday" }`
+  directly after Summary; toggleable in Settings → Menu items.
+- `tabMeta` icon in `App.tsx`; render branch lazy-imports
+  `src/views/workday/WorkdayView.tsx`.
+- `TAB_SOURCES` / `PAGE_REFRESH` entries in `src/config/tabData.ts`.
+
+## Errors and loading
+
+- Each section renders its own skeleton while its inputs load and its own
+  inline error if its query failed; other sections are unaffected.
+- Jira not configured → Jira-backed sections show "Connect Jira in Settings";
+  GitHub sections still render.
+- Empty sections render a one-line muted empty state rather than disappearing,
+  so the page layout stays stable.
+
+## Testing
+
+- `buildWorkday`: ticket grouping, no-PR tickets, in-sprint vs outside-sprint
+  routing, not-started by status category, Reviewing dedupe, Blockers/Waiting
+  selection.
+- `lastWorkdayStart`: weekday, day after weekend, custom weekend sets, all-days
+  edge case (falls back to yesterday).
+- `workdayToMarkdown`: dedupe priority, omitted empty headings, note lines.
+- `noteBadge`: every note type.
+- New Jira/GitHub API functions with the mocked HTTP adapter (JQL, fields,
+  pagination, per-request failure isolation).
+- `WorkdayView` render test with fixture data.
+
+## Out of scope
+
+- Per-board / team-specific sprint selection.
+- Posting to Slack directly.
+- Commit-level activity and Jira comment activity in "Done since".
