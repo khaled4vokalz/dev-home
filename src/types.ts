@@ -70,6 +70,30 @@ export interface JiraComment {
   issueSummary: string;
 }
 
+/** An assigned ticket in an open sprint (Workday sprint membership). */
+export interface SprintTicket {
+  key: string;
+  summary: string;
+  status: { name: string; categoryKey: StatusCategoryKey };
+  /** Name of the active (else first open) sprint the ticket is in. */
+  sprintName: string | null;
+  points: number | null;
+  flagged: boolean;
+}
+
+/** An assigned, unresolved ticket outside every open sprint. */
+export interface OffSprintTicket extends JiraIssue {
+  flagged: boolean;
+}
+
+/** A ticket whose status the current user changed since a point in time. */
+export interface DoneTicket {
+  key: string;
+  summary: string;
+  toStatus: string;
+  changedAt: string;
+}
+
 // GitHub Types
 export interface CheckRunInfo {
   name: string;
