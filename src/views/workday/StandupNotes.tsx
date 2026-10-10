@@ -9,6 +9,8 @@ const SAVE_DEBOUNCE_MS = 600;
 interface StandupNotesProps {
   now: Date;
   notes: Note[];
+  /** False until Notes have loaded; creating before then could duplicate today's note. */
+  notesLoaded: boolean;
   addNote: (type: NoteType, content: string, referenceId?: string, title?: string) => Promise<Note>;
   editNote: (id: number, updates: { content?: string; title?: string }) => Promise<void>;
   /** Called on every keystroke so the copy preview stays live. */
@@ -20,17 +22,28 @@ interface StandupNotesProps {
  * creates the note; keystrokes during that create are folded into one
  * follow-up edit so we never create two notes for the same day.
  */
-export function StandupNotes({ now, notes, addNote, editNote, onChange }: StandupNotesProps) {
+export function StandupNotes({
+  now,
+  notes,
+  notesLoaded,
+  addNote,
+  editNote,
+  onChange,
+}: StandupNotesProps) {
   const referenceId = standupRef(now);
   const title = standupTitle(now);
   const note = notes.find((n) => n.type === "standup" && n.reference_id === referenceId);
 
   const [text, setText] = useState(note?.content ?? "");
+  const [saveError, setSaveError] = useState(false);
   const typedRef = useRef(false);
   const latestRef = useRef(text);
   const noteIdRef = useRef<number | null>(note?.id ?? null);
   const creatingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A create was held back because Notes hadn't loaded yet. */
+  const deferredRef = useRef(false);
+  const notesLoadedRef = useRef(notesLoaded);
   // Refs so the debounced save always sees the latest callbacks and context.
   const addNoteRef = useRef(addNote);
   const editNoteRef = useRef(editNote);
@@ -43,10 +56,13 @@ export function StandupNotes({ now, notes, addNote, editNote, onChange }: Standu
     referenceIdRef.current = referenceId;
     titleRef.current = title;
     onChangeRef.current = onChange;
+    notesLoadedRef.current = notesLoaded;
   });
 
   // Remounts per day (keyed by the parent): seed the preview with this day's text.
-  useEffect(() => onChangeRef.current(latestRef.current), []);
+  useEffect(() => {
+    onChangeRef.current(latestRef.current);
+  }, []);
 
   // Notes load after mount: adopt the saved note once, unless the user already typed.
   useEffect(() => {
@@ -60,34 +76,56 @@ export function StandupNotes({ now, notes, addNote, editNote, onChange }: Standu
     }
   }, [note]);
 
+  /** Never rejects: failures surface as `saveError` and are retried on the next edit. */
   const save = async () => {
     timerRef.current = null;
     const content = latestRef.current;
-    if (noteIdRef.current !== null) {
-      await editNoteRef.current(noteIdRef.current, { content });
-      return;
-    }
-    if (creatingRef.current) return; // the in-flight create will pick up latestRef
-    creatingRef.current = true;
     try {
-      const created = await addNoteRef.current(
-        "standup",
-        content,
-        referenceIdRef.current,
-        titleRef.current,
-      );
-      noteIdRef.current = created.id;
-      if (latestRef.current !== content) {
-        await editNoteRef.current(created.id, { content: latestRef.current });
+      if (noteIdRef.current !== null) {
+        await editNoteRef.current(noteIdRef.current, { content });
+        setSaveError(false);
+        return;
       }
-    } finally {
-      creatingRef.current = false;
+      if (creatingRef.current) return; // the in-flight create will pick up latestRef
+      if (!content.trim()) return; // nothing worth creating a note for
+      if (!notesLoadedRef.current) {
+        // Today's note may already exist but not be loaded yet; retry once it is.
+        deferredRef.current = true;
+        return;
+      }
+      creatingRef.current = true;
+      try {
+        const created = await addNoteRef.current(
+          "standup",
+          content,
+          referenceIdRef.current,
+          titleRef.current,
+        );
+        noteIdRef.current = created.id;
+        if (latestRef.current !== content) {
+          await editNoteRef.current(created.id, { content: latestRef.current });
+        }
+      } finally {
+        creatingRef.current = false;
+      }
+      setSaveError(false);
+    } catch {
+      setSaveError(true);
     }
   };
   const saveRef = useRef(save);
   useEffect(() => {
     saveRef.current = save;
   });
+
+  // Run a create that was held back for Notes to load. The adopt effect above
+  // runs first, so an existing note is edited rather than duplicated.
+  useEffect(() => {
+    if (notesLoaded && deferredRef.current) {
+      deferredRef.current = false;
+      void saveRef.current();
+    }
+  }, [notesLoaded, note]);
 
   // Flush a pending save on unmount so the last keystrokes aren't lost.
   useEffect(
@@ -121,7 +159,13 @@ export function StandupNotes({ now, notes, addNote, editNote, onChange }: Standu
             value={text}
             onChange={(e) => handleChange(e.target.value)}
           />
-          <div className="workday-hint">Saved to Notes as “{title}”</div>
+          {saveError ? (
+            <div className="workday-hint workday-hint--error">
+              Couldn't save — will retry on next edit
+            </div>
+          ) : (
+            <div className="workday-hint">Saved to Notes as “{title}”</div>
+          )}
         </div>
       </Card.Body>
     </Card>

@@ -40,6 +40,8 @@ export interface WorkdayViewProps {
   refreshKey: number;
   onRefresh: () => void;
   notes: Note[];
+  /** useNotes().loaded — today's standup note is only created once Notes have loaded. */
+  notesLoaded: boolean;
   addNote: (type: NoteType, content: string, referenceId?: string, title?: string) => Promise<Note>;
   editNote: (id: number, updates: { content?: string; title?: string }) => Promise<void>;
   /** Injectable clock for tests. */
@@ -200,6 +202,7 @@ export function WorkdayView(props: WorkdayViewProps) {
     refreshKey,
     onRefresh,
     notes,
+    notesLoaded,
     addNote,
     editNote,
   } = props;
@@ -228,8 +231,8 @@ export function WorkdayView(props: WorkdayViewProps) {
   );
   const filtered = useMemo(() => filterWorkday(sections, filter), [sections, filter]);
 
-  const todaysNote = notes.find((n) => n.type === "standup" && n.reference_id === standupRef(now));
-  const [noteText, setNoteText] = useState(() => todaysNote?.content ?? "");
+  // StandupNotes seeds this on mount and keeps it in sync.
+  const [noteText, setNoteText] = useState("");
   const markdown = useMemo(
     () => workdayToMarkdown(filtered, noteText, now),
     [filtered, noteText, now],
@@ -425,6 +428,7 @@ export function WorkdayView(props: WorkdayViewProps) {
             key={standupRef(now)}
             now={now}
             notes={notes}
+            notesLoaded={notesLoaded}
             addNote={addNote}
             editNote={editNote}
             onChange={setNoteText}

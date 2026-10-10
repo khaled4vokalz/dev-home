@@ -42,7 +42,8 @@ export function WorkdaySection({
             <div className="workday-skeleton" />
           </div>
         ) : count === 0 ? (
-          <div className="workday-empty">{empty}</div>
+          // With an error, "nothing to show" would be misleading.
+          !error && <div className="workday-empty">{empty}</div>
         ) : (
           <div className="workday-rows">{children}</div>
         )}

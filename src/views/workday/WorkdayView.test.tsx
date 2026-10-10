@@ -36,6 +36,7 @@ vi.mock("../../hooks/useWorkdayExtras", () => ({
 }));
 
 import { WorkdayView } from "./WorkdayView";
+import { WorkdaySection } from "./WorkdaySection";
 
 const NOW = new Date(2026, 9, 11, 10, 0);
 const prs: GitHubPR[] = [
@@ -65,7 +66,7 @@ function renderView(extra: Partial<React.ComponentProps<typeof WorkdayView>> = {
       ({ id: 7, type, content, reference_id, title }) as Note,
   );
   const editNote = vi.fn(async () => {});
-  render(
+  const view = (more: Partial<React.ComponentProps<typeof WorkdayView>>) => (
     <WorkdayView
       configured
       openPRs={prs}
@@ -79,13 +80,20 @@ function renderView(extra: Partial<React.ComponentProps<typeof WorkdayView>> = {
       refreshKey={0}
       onRefresh={() => {}}
       notes={[]}
+      notesLoaded
       addNote={addNote}
       editNote={editNote}
       now={NOW}
       {...extra}
-    />,
+      {...more}
+    />
   );
-  return { addNote, editNote };
+  const { rerender } = render(view({}));
+  return {
+    addNote,
+    editNote,
+    rerender: (more: Partial<React.ComponentProps<typeof WorkdayView>>) => rerender(view(more)),
+  };
 }
 
 describe("WorkdayView", () => {
@@ -148,5 +156,97 @@ describe("WorkdayView", () => {
         /Need prod access!/,
       ),
     ).toBeTruthy();
+  });
+
+  const typeNote = async (value: string) => {
+    fireEvent.change(screen.getByPlaceholderText(/Anything to raise at standup/), {
+      target: { value },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+  };
+
+  it("shows a save error instead of the hint when autosave fails, and retries the create", async () => {
+    vi.useFakeTimers();
+    const addNote = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("db locked"))
+      .mockImplementation(
+        async (type, content, reference_id, title) =>
+          ({ id: 8, type, content, reference_id, title }) as Note,
+      );
+    renderView({ addNote });
+    await typeNote("Need prod access");
+    expect(screen.getByText(/Couldn't save — will retry on next edit/)).toBeTruthy();
+    expect(screen.queryByText(/Saved to Notes as/)).toBeNull();
+
+    await typeNote("Need prod access!");
+    expect(addNote).toHaveBeenCalledTimes(2);
+    expect(addNote).toHaveBeenLastCalledWith(
+      "standup",
+      "Need prod access!",
+      "standup:2026-10-11",
+      "Standup · Sun 11 Oct",
+    );
+    expect(screen.queryByText(/Couldn't save/)).toBeNull();
+    expect(screen.getByText(/Saved to Notes as/)).toBeTruthy();
+  });
+
+  it("folds keystrokes made during an in-flight create into one follow-up edit", async () => {
+    vi.useFakeTimers();
+    let resolveCreate: (n: Note) => void = () => {};
+    const addNote = vi.fn(() => new Promise<Note>((r) => (resolveCreate = r)));
+    const editNote = vi.fn(async () => {});
+    renderView({ addNote, editNote });
+    await typeNote("one");
+    await typeNote("one two");
+    await typeNote("one two three");
+    expect(addNote).toHaveBeenCalledTimes(1);
+    expect(editNote).not.toHaveBeenCalled();
+    await act(async () => {
+      resolveCreate({ id: 11, type: "standup", content: "one" } as Note);
+    });
+    expect(addNote).toHaveBeenCalledTimes(1);
+    expect(editNote).toHaveBeenCalledTimes(1);
+    expect(editNote).toHaveBeenCalledWith(11, { content: "one two three" });
+  });
+
+  it("holds the create until notes load, then edits today's existing note", async () => {
+    vi.useFakeTimers();
+    const { addNote, editNote, rerender } = renderView({ notesLoaded: false });
+    await typeNote("Need prod access");
+    expect(addNote).not.toHaveBeenCalled();
+    const existing = {
+      id: 42,
+      type: "standup",
+      content: "old",
+      reference_id: "standup:2026-10-11",
+      title: "Standup · Sun 11 Oct",
+    } as Note;
+    await act(async () => {
+      rerender({ notesLoaded: true, notes: [existing] });
+    });
+    expect(addNote).not.toHaveBeenCalled();
+    expect(editNote).toHaveBeenCalledWith(42, { content: "Need prod access" });
+  });
+
+  it("doesn't create a note for whitespace-only text", async () => {
+    vi.useFakeTimers();
+    const { addNote } = renderView();
+    await typeNote("   ");
+    expect(addNote).not.toHaveBeenCalled();
+  });
+});
+
+describe("WorkdaySection", () => {
+  it("hides the empty line when there is an error", () => {
+    render(
+      <WorkdaySection title="Done" count={0} loading={false} error="Jira down" empty="Nothing here">
+        {null}
+      </WorkdaySection>,
+    );
+    expect(screen.getByText("Jira down")).toBeTruthy();
+    expect(screen.queryByText("Nothing here")).toBeNull();
   });
 });

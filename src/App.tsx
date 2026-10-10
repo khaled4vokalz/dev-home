@@ -674,6 +674,7 @@ export default function App() {
                         refreshKey={refreshKey}
                         onRefresh={() => refresh(PAGE_REFRESH.workday.sources)}
                         notes={notes}
+                        notesLoaded={notesLoaded}
                         addNote={addNote}
                         editNote={editNote}
                       />

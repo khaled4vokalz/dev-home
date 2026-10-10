@@ -265,6 +265,10 @@ a.workday-row-title:hover {
   margin-top: 6px;
 }
 
+.workday-hint--error {
+  color: var(--color-status-danger);
+}
+
 .workday-preview {
   margin: 0;
   padding: var(--space-3) var(--space-4);
