@@ -210,6 +210,7 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
   blockers.forEach((b) => noteOff(b.ticket));
   waiting.forEach((w) => noteOff(w.ticket));
   notStartedOff.forEach((n) => noteOff(n.ticket));
+  done.forEach((d) => noteOff(d.ticket));
 
   return {
     done: {

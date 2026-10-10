@@ -280,6 +280,25 @@ describe("buildWorkday", () => {
     expect(s.done.error).toBe("gh down");
     expect(s.done.loading).toBe(false);
   });
+
+  it("counts off-sprint tickets in done items", () => {
+    const s = buildWorkday(
+      inputs({
+        assignedIssues: [issue("OFF-99", "done")],
+        extras: {
+          sprint: { data: [], error: null },
+          merged: {
+            data: [pr(1, { title: "OFF-99 merged", merged_at: "2026-10-09T10:00:00Z" })],
+            error: null,
+          },
+        },
+      }),
+      NOW,
+    );
+    expect(s.done.items).toHaveLength(1);
+    expect(s.done.items[0].ticket?.offSprint).toBe(true);
+    expect(s.offSprintCount).toBe(1);
+  });
 });
 
 describe("filterWorkday", () => {
@@ -290,7 +309,7 @@ describe("filterWorkday", () => {
         pr(2, { title: "OUT-1 b" }),
         pr(3, { title: "no key" }),
       ],
-      reviewRequests: [pr(4, { title: "R-1 r" })],
+      reviewRequests: [pr(4, { title: "RR-1 r" })],
       assignedIssues: [issue("IN-1", "indeterminate"), issue("OUT-1", "indeterminate")],
       extras: { sprint: { data: [sprintT("IN-1")], error: null } },
     }),
@@ -301,6 +320,7 @@ describe("filterWorkday", () => {
     const f = filterWorkday(s, "sprint");
     expect(f.workingOn.items.map((g) => g.ticket?.key ?? null)).toEqual(["IN-1", null]);
     expect(f.reviewing.items).toHaveLength(1);
+    expect(f.reviewing.items[0].ticket?.key).toBe("RR-1");
     expect(f.offSprintCount).toBe(1);
   });
 
