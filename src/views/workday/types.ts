@@ -1,4 +1,6 @@
-import type { GitHubPR, JiraIssue, ReviewState } from "../../types";
+import type { GitHubComment, GitHubPR, JiraComment, JiraIssue, ReviewState } from "../../types";
+import type { BadgeVariant } from "../../components/primitives/Badge";
+import type { StateBadge } from "./prState";
 import type { WorkdayExtras } from "../../services/workday";
 
 export interface WorkdayInputs {
@@ -74,3 +76,76 @@ export interface WorkdaySections {
 }
 
 export type SprintFilter = "all" | "sprint" | "off";
+
+/* ---------- Focus mode ---------- */
+
+/** Needs-you tiers, in display order. */
+export type NeedsTier = "self" | "others" | "ship";
+
+/** One "needs you" line: a coloured verb (a label, not a button) for one PR. */
+export interface NeedsItem {
+  tier: NeedsTier;
+  verb: string;
+  tone: BadgeVariant;
+  pr: GitHubPR;
+  ticketKey: string | null;
+  /** One short fact, e.g. "lint + unit failing" or "abu re-requested". */
+  reason: string;
+  at: string;
+}
+
+export interface MentionItem {
+  id: string;
+  source: "GitHub" | "Jira";
+  who: string;
+  ticketKey: string | null;
+  /** "repo#12" or the Jira key. */
+  where: string;
+  snippet: string;
+  at: string;
+  url: string;
+}
+
+/** A Working-on line: a ticket with its PRs, or (ticket null) one ticketless PR. */
+export interface WorkingItem {
+  ticket: TicketRef | null;
+  prs: GitHubPR[];
+  state: StateBadge;
+  at: string | null;
+}
+
+export interface WaitingOnReviewer {
+  pr: GitHubPR;
+  ticketKey: string | null;
+  reviewers: string[];
+  since: string;
+}
+
+/** A PR I reviewed where nothing is pending on me. */
+export interface WaitingOnAuthor {
+  pr: GitHubPR;
+  ticketKey: string | null;
+  state: ReviewState | null;
+  at: string | null;
+}
+
+export interface FocusInputs {
+  openPRs: GitHubPR[];
+  reviewRequests: GitHubPR[];
+  reviewingPRs: GitHubPR[];
+  /** buildWorkday's (unfiltered) Working-on groups. */
+  workingOn: TicketGroup[];
+  githubMentions: GitHubComment[];
+  jiraMentions: JiraComment[];
+}
+
+export interface FocusData {
+  needs: NeedsItem[];
+  mentions: MentionItem[];
+  working: WorkingItem[];
+  waiting: {
+    onReviewers: WaitingOnReviewer[];
+    onAuthor: WaitingOnAuthor[];
+    approved: WaitingOnAuthor[];
+  };
+}

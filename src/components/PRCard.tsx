@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { IconExternalLink, IconCopy, IconNote } from "@tabler/icons-react";
 import { GitHubPR } from "../types";
 import { formatRelativeTime } from "../utils/time";
@@ -38,8 +37,6 @@ interface PRCardProps {
   showReasonChips?: boolean;
   /** Number of unresolved notes on this PR — shows a note-count badge when > 0. */
   noteCount?: number;
-  /** Extra pills in the top-right slot, ahead of the status/CI indicators. */
-  badges?: ReactNode;
   /** Opens the PR description modal. */
   onOpen: (pr: GitHubPR) => void;
   /** Copies the given head branch name to the clipboard (surfaces a toast). */
@@ -58,7 +55,6 @@ export function PRCard({
   clustered,
   showReasonChips,
   noteCount,
-  badges,
   onOpen,
   onCopyBranch,
   onCopyLink,
@@ -190,7 +186,6 @@ export function PRCard({
 
       <div className="pr-card-side">
         <div className="pr-card-side-top">
-          {badges}
           {showReasonChips && <ReasonChips pr={pr} />}
           {showStatusPill && <StatusPill pr={pr} />}
           {fields.showChecks && (

@@ -2,6 +2,7 @@ import type { GitHubPR, JiraIssue, StatusCategoryKey } from "../../types";
 import { groupByTicket, ticketKeyOf } from "../../utils/tickets";
 import { ACTIONABLE_REASONS, categorizeOpenPR } from "../../utils/prCategories";
 import type { Part } from "../../services/workday";
+import { reviewingState, type ReviewingState, type StateBadge } from "./prState";
 import type {
   BlockerItem,
   DoneItem,
@@ -268,21 +269,6 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
   };
 }
 
-/** Items bucketed by ticket in first-seen order; ticketless items share one `null` bucket. */
-export function groupItemsByTicket<T extends { ticket: TicketRef | null }>(
-  items: T[],
-): { ticket: TicketRef | null; items: T[] }[] {
-  const byKey = new Map<string, { ticket: TicketRef | null; items: T[] }>();
-  for (const item of items) {
-    // "" can't collide with a real ticket key.
-    const key = item.ticket ? item.ticket.key.toUpperCase() : "";
-    const group = byKey.get(key);
-    if (group) group.items.push(item);
-    else byKey.set(key, { ticket: item.ticket, items: [item] });
-  }
-  return [...byKey.values()];
-}
-
 /** Apply the header's sprint filter. "all" returns the same object. */
 export function filterWorkday(s: WorkdaySections, filter: SprintFilter): WorkdaySections {
   if (filter === "all") return s;
@@ -301,4 +287,43 @@ export function filterWorkday(s: WorkdaySections, filter: SprintFilter): Workday
       offSprintItems: filter === "sprint" ? [] : s.notStarted.offSprintItems,
     },
   };
+}
+
+/** A Reviewing one-liner: one row per PR, with where it stands for me. */
+export interface ReviewingLine {
+  pr: GitHubPR;
+  ticket: TicketRef | null;
+  state: ReviewingState;
+}
+
+/** Standup's Reviewing section as one-liners: each PR once, newest first. */
+export function reviewingLines(s: WorkdaySections): ReviewingLine[] {
+  const lines = s.reviewing.items.flatMap((g) =>
+    g.prs.map((pr) => ({
+      pr,
+      ticket: g.ticket,
+      state: reviewingState(pr, s.reviewRequestedUrls.has(pr.html_url)),
+    })),
+  );
+  return newestFirst(lines, (l) => time(l.pr.updated_at));
+}
+
+/** Short one-liner labels for blocker reasons. */
+const BLOCKER_LABEL: Record<string, string> = {
+  "CI failed": "CI failing",
+  "Merge conflict": "Conflict",
+  "No reviewer requested": "No reviewer",
+};
+
+/** A Blockers one-liner's lead label: the most blocking reason, or "Flagged". */
+export function blockerLabel(item: BlockerItem): StateBadge {
+  if (item.kind === "flagged") return { label: "Flagged", tone: "danger" };
+  const first = item.reasons[0] ?? "";
+  const label = BLOCKER_LABEL[first] ?? first;
+  return { label, tone: first === "No reviewer requested" ? "warning" : "danger" };
+}
+
+/** In progress row count: one per ticket, one per ticketless PR. */
+export function inProgressCount(groups: TicketGroup[]): number {
+  return groups.reduce((n, g) => n + (g.ticket ? 1 : g.prs.length), 0);
 }

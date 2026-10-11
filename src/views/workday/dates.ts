@@ -66,3 +66,14 @@ export function standupTitle(now: Date): string {
 export function formatJqlDate(d: Date): string {
   return `${localDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/** Compact age of `iso` relative to `now`: "now", "20m", "5h", "3d", "2w". */
+export function compactAge(iso: string, now: Date): string {
+  const mins = Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return days < 14 ? `${days}d` : `${Math.floor(days / 7)}w`;
+}

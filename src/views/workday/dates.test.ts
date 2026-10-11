@@ -6,6 +6,7 @@ import {
   standupTitle,
   formatJqlDate,
   formatSinceLabel,
+  compactAge,
 } from "./dates";
 import { getWeekendDays, DEFAULT_WEEKEND_DAYS } from "../../services/config";
 
@@ -62,5 +63,25 @@ describe("getWeekendDays", () => {
     expect(getWeekendDays({})).toEqual(DEFAULT_WEEKEND_DAYS);
     expect(getWeekendDays({ weekendDays: [0, 6, 9, -1] })).toEqual([0, 6]);
     expect(getWeekendDays({ weekendDays: [] })).toEqual([]);
+  });
+});
+
+describe("compactAge", () => {
+  const now = new Date("2026-10-12T10:00:00Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+  const MIN = 60_000;
+
+  it("buckets into now / minutes / hours / days / weeks", () => {
+    expect(compactAge(ago(0), now)).toBe("now");
+    expect(compactAge(ago(59_000), now)).toBe("now");
+    expect(compactAge(ago(-5 * MIN), now)).toBe("now"); // future timestamps
+    expect(compactAge(ago(MIN), now)).toBe("1m");
+    expect(compactAge(ago(59 * MIN), now)).toBe("59m");
+    expect(compactAge(ago(60 * MIN), now)).toBe("1h");
+    expect(compactAge(ago(23 * 60 * MIN + 59 * MIN), now)).toBe("23h");
+    expect(compactAge(ago(24 * 60 * MIN), now)).toBe("1d");
+    expect(compactAge(ago(13 * 24 * 60 * MIN), now)).toBe("13d");
+    expect(compactAge(ago(14 * 24 * 60 * MIN), now)).toBe("2w");
+    expect(compactAge(ago(30 * 24 * 60 * MIN), now)).toBe("4w");
   });
 });

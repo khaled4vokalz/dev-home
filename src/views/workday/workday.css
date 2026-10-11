@@ -88,6 +88,12 @@
   color: var(--color-text-muted);
 }
 
+.workday-section-hint {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
 .workday-section-error {
   color: var(--color-status-danger);
   font-size: 0.75rem;
@@ -137,53 +143,6 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
-.workday-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 7px var(--space-4);
-  font-size: 0.8125rem;
-  min-width: 0;
-}
-
-.workday-row:hover {
-  background: var(--color-bg-hover);
-}
-
-.workday-row-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-text-primary);
-}
-
-button.workday-row-title {
-  padding: 0;
-  border: none;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-button.workday-row-title:hover {
-  color: var(--color-accent);
-}
-
-.workday-row-meta {
-  flex-shrink: 0;
-  color: var(--color-text-secondary);
-  font-size: 0.6875rem;
-  white-space: nowrap;
-}
-
-/* Every ticket gets a header here, so it isn't a click-to-collapse cluster. */
-.workday-group-header {
-  padding: 7px var(--space-4);
-}
-
 .workday-pill {
   flex-shrink: 0;
   font-size: 0.6875rem;
@@ -197,18 +156,6 @@ button.workday-row-title:hover {
 .workday-pill--offsprint {
   border: 1px dashed var(--color-status-warning, #d29922);
   color: var(--color-status-warning, #d29922);
-}
-
-.workday-pill--nopr {
-  border: 1px dashed var(--color-border);
-  color: var(--color-text-muted);
-}
-
-.workday-divider {
-  color: var(--color-text-muted);
-  font-size: 0.6875rem;
-  padding: 4px var(--space-4);
-  background: var(--color-status-warning-bg);
 }
 
 .workday-more {
@@ -249,4 +196,310 @@ button.workday-row-title:hover {
   color: var(--color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ---------- Mode toggle ---------- */
+
+.workday-mode-toggle kbd {
+  font: 0.625rem var(--font-mono);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+
+/* ---------- Rows ---------- */
+
+.workday-subhead {
+  padding: 5px var(--space-4);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  background: var(--color-bg-hover);
+}
+
+.workday-key {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.workday-key--none {
+  color: var(--color-text-muted);
+}
+
+.workday-tone--danger {
+  color: var(--color-status-danger);
+}
+
+.workday-tone--warning {
+  color: var(--color-status-warning);
+}
+
+.workday-tone--info {
+  color: var(--color-status-info);
+}
+
+.workday-tone--success {
+  color: var(--color-status-success);
+}
+
+.workday-tone--purple {
+  color: var(--color-status-purple);
+}
+
+[role="button"].workday-line,
+[role="button"].workday-item,
+.workday-mention {
+  cursor: pointer;
+}
+
+/* One-liner: lead · key · title · meta. */
+.workday-line {
+  display: grid;
+  grid-template-columns: 124px 80px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px var(--space-4);
+  font-size: 0.8125rem;
+}
+
+.workday-line:hover,
+.workday-item:hover,
+.workday-mention:hover {
+  background: var(--color-bg-hover);
+}
+
+.workday-line-lead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.workday-line-lead--dot {
+  font-weight: 600;
+}
+
+.workday-line-lead--dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.workday-line-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.workday-line-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+
+.workday-line-sub,
+.workday-line-meta {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Ticket header above 2+ PRs: no lead column. */
+.workday-line--group {
+  grid-template-columns: 80px minmax(0, 1fr) auto;
+  padding-top: 8px;
+  padding-bottom: 2px;
+}
+
+.workday-line--group .workday-line-lead {
+  display: none;
+}
+
+.workday-line--group .workday-line-text {
+  color: var(--color-text-secondary);
+}
+
+/* Two-line row: icon · key + title / sub · badge · time. */
+.workday-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px var(--space-4);
+  font-size: 0.8125rem;
+}
+
+.workday-item--child {
+  padding-left: 38px;
+}
+
+.workday-rows > .workday-line--group + .workday-item--child,
+.workday-rows > .workday-item--child + .workday-item--child {
+  border-top: none;
+}
+
+.workday-item-icon {
+  color: var(--color-text-secondary);
+}
+
+.workday-item-main {
+  min-width: 0;
+}
+
+.workday-item-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.workday-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+
+.workday-item-sub {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.workday-item-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.workday-item-time {
+  min-width: 40px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.workday-item-copy {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.workday-item:hover .workday-item-copy,
+.workday-item-copy:focus-visible {
+  opacity: 1;
+}
+
+.workday-item-copy:hover {
+  color: var(--color-accent);
+}
+
+/* ---------- Needs you ---------- */
+
+.workday-needs {
+  border-color: color-mix(in srgb, var(--color-status-warning) 45%, transparent);
+  background: linear-gradient(
+      color-mix(in srgb, var(--color-status-warning) 5%, transparent),
+      color-mix(in srgb, var(--color-status-warning) 1.5%, transparent)
+    ),
+    var(--color-bg-panel);
+}
+
+.workday-needs .workday-section-count {
+  background: var(--color-status-warning-bg) !important;
+  color: var(--color-status-warning) !important;
+  font-weight: 600;
+}
+
+.workday-needs--empty {
+  border-color: var(--color-border);
+  background: var(--color-bg-panel);
+}
+
+.workday-needs--empty .workday-section-count {
+  display: none;
+}
+
+.workday-needs .workday-rows > * + * {
+  border-top: none;
+}
+
+.workday-tier {
+  padding: 6px var(--space-4) 2px;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workday-line--needs {
+  grid-template-columns: 130px 80px minmax(0, 1fr) auto;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.workday-all-clear {
+  color: var(--color-status-success);
+}
+
+/* ---------- Mentions ---------- */
+
+.workday-mention {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 7px var(--space-4);
+  font-size: 0.8125rem;
+}
+
+.workday-mention-src {
+  padding-top: 1px;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+}
+
+.workday-mention-main {
+  min-width: 0;
+}
+
+.workday-mention-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.workday-mention-who {
+  font-weight: 600;
+}
+
+.workday-mention-where {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.workday-mention-snippet {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
 }

@@ -38,8 +38,16 @@ describe("workday tab", () => {
       "openPRs",
       "reviewRequests",
       "jiraIssues",
+      "jiraComments",
+      "githubMentions",
       "notes",
     ]);
-    expect(PAGE_REFRESH.workday.sources).toEqual(["openPRs", "reviewRequests", "jiraIssues"]);
+    expect(PAGE_REFRESH.workday.sources).toEqual([
+      "openPRs",
+      "reviewRequests",
+      "jiraIssues",
+      "jiraComments",
+      "githubMentions",
+    ]);
   });
 });

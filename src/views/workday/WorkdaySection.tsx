@@ -10,8 +10,11 @@ interface WorkdaySectionProps {
   loading: boolean;
   error: string | null;
   /** Muted one-liner shown when there's nothing to list. */
-  empty: string;
+  empty: React.ReactNode;
+  /** Muted text after the count. */
+  hint?: string;
   actions?: React.ReactNode;
+  className?: string;
   collapsed: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -28,7 +31,9 @@ export function WorkdaySection({
   loading,
   error,
   empty,
+  hint,
   actions,
+  className = "",
   collapsed,
   onToggle,
   children,
@@ -36,7 +41,7 @@ export function WorkdaySection({
   const Chevron = collapsed ? IconChevronRight : IconChevronDown;
 
   return (
-    <Card className="workday-section">
+    <Card className={`workday-section ${className}`.trim()}>
       <Card.Body className="p-0">
         <SectionHeader
           className={`workday-section-header${collapsed ? " workday-section-header--collapsed" : ""}`}
@@ -50,7 +55,10 @@ export function WorkdaySection({
           >
             <Chevron size={16} stroke={2} className="workday-section-chevron" />
             <span>{title}</span>
-            <Badge variant="neutral">{count}</Badge>
+            <Badge variant="neutral" className="workday-section-count">
+              {count}
+            </Badge>
+            {hint && <span className="workday-section-hint">{hint}</span>}
           </button>
         </SectionHeader>
         {!collapsed && (
