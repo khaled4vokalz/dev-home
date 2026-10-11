@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Spinner from "react-bootstrap/Spinner";
 import { IconExternalLink, IconGitPullRequest, IconRefresh } from "@tabler/icons-react";
@@ -40,30 +40,16 @@ export const JiraIssueDrawer: React.FC<JiraIssueDrawerProps> = ({
   // Lists omit the description; lazy-load it (cached) when the drawer opens.
   const { description, loading: isDescLoading } = useIssueDescription(issue, show);
 
-  // With backdrop={false} the list stays interactive, so there is no overlay to
-  // catch outside clicks. Close the drawer when a click lands outside the panel.
-  useEffect(() => {
-    if (!show) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Element | null;
-      if (target && !target.closest(".jira-issue-drawer")) {
-        onHide();
-      }
-    };
-    // Defer attaching so the click that opened the drawer doesn't immediately close it.
-    const id = window.setTimeout(() => document.addEventListener("mousedown", handleClick), 0);
-    return () => {
-      window.clearTimeout(id);
-      document.removeEventListener("mousedown", handleClick);
-    };
-  }, [show, onHide]);
-
+  // backdrop={false} keeps the page interactive behind the drawer, so outside
+  // clicks act on the page rather than closing it. Only the close button and
+  // Escape dismiss the drawer.
   return (
     <Offcanvas
       show={show}
       onHide={onHide}
       placement="end"
       backdrop={false}
+      keyboard
       scroll
       className="jira-issue-drawer"
     >
