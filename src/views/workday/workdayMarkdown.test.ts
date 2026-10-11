@@ -9,6 +9,7 @@ const t = (key: string, summary = `S ${key}`, offSprint = false): TicketRef => (
   summary,
   statusName: null,
   offSprint,
+  updated: null,
 });
 const pr = (n: number, o: Partial<GitHubPR> = {}): GitHubPR =>
   ({

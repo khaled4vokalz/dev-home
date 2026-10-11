@@ -51,11 +51,18 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
   const isOffSprint = (key: string) =>
     sprintData !== null && assigned.has(key.toUpperCase()) && !sprintByKey.has(key.toUpperCase());
 
-  const lookup = new Map<string, { summary: string; statusName: string | null }>();
+  const lookup = new Map<
+    string,
+    { summary: string; statusName: string | null; updated?: string | null }
+  >();
   for (const t of sprintData ?? [])
     lookup.set(t.key.toUpperCase(), { summary: t.summary, statusName: t.status.name });
   for (const i of [...assigned.values(), ...inp.allIssues]) {
-    lookup.set(i.key.toUpperCase(), { summary: i.summary, statusName: i.status?.name ?? null });
+    lookup.set(i.key.toUpperCase(), {
+      summary: i.summary,
+      statusName: i.status?.name ?? null,
+      updated: i.updated ?? null,
+    });
   }
 
   const ref = (key: string, flaggable = true): TicketRef => {
@@ -64,6 +71,7 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
       key,
       summary: info?.summary ?? "",
       statusName: info?.statusName ?? null,
+      updated: info?.updated ?? null,
       offSprint: flaggable && isOffSprint(key),
     };
   };
@@ -241,6 +249,27 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
     },
     offSprintCount: offKeys.size,
   };
+}
+
+/** Items bucketed by ticket in first-seen order; ticketless items go last under `null`. */
+export function groupItemsByTicket<T extends { ticket: TicketRef | null }>(
+  items: T[],
+): { ticket: TicketRef | null; items: T[] }[] {
+  const byKey = new Map<string, { ticket: TicketRef | null; items: T[] }>();
+  const none: T[] = [];
+  for (const item of items) {
+    if (!item.ticket) {
+      none.push(item);
+      continue;
+    }
+    const key = item.ticket.key.toUpperCase();
+    const group = byKey.get(key);
+    if (group) group.items.push(item);
+    else byKey.set(key, { ticket: item.ticket, items: [item] });
+  }
+  const groups = [...byKey.values()];
+  if (none.length > 0) groups.push({ ticket: null, items: none });
+  return groups;
 }
 
 /** Apply the header's sprint filter. "all" returns the same object. */

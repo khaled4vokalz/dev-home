@@ -31,5 +31,10 @@ export function usePRCopyActions() {
     [copy],
   );
 
-  return { copy, onCopyBranch, onCopyLink, onCopyRef, toast };
+  const onCopyTicket = useCallback(
+    (key: string) => copy(key, "Copied ticket key to clipboard"),
+    [copy],
+  );
+
+  return { copy, onCopyBranch, onCopyLink, onCopyRef, onCopyTicket, toast };
 }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Card from "react-bootstrap/Card";
 import Button from "react-bootstrap/Button";
-import { IconCopy, IconRefresh, IconSun } from "@tabler/icons-react";
+import { IconCopy, IconFold, IconFoldDown, IconRefresh, IconSun } from "@tabler/icons-react";
 import type { GitHubPR, JiraIssue, Note, NoteType, ReviewState } from "../../types";
 import { Badge, type BadgeVariant } from "../../components/primitives/Badge";
 import { SectionHeader } from "../../components/primitives/SectionHeader";
@@ -14,7 +14,7 @@ import { usePersistedSet } from "../../hooks/usePersistedSet";
 import { usePRCopyActions } from "../../hooks/usePRCopyActions";
 import { formatRelativeTime } from "../../utils/time";
 import { useWorkdayExtras } from "../../hooks/useWorkdayExtras";
-import { buildWorkday, filterWorkday } from "./buildWorkday";
+import { buildWorkday, filterWorkday, groupItemsByTicket } from "./buildWorkday";
 import { workdayToMarkdown } from "./workdayMarkdown";
 import { formatSinceLabel, sinceFor, standupRef, type Lookback } from "./dates";
 import type {
@@ -22,6 +22,7 @@ import type {
   DoneItem,
   NotStartedItem,
   SprintFilter,
+  TicketGroup,
   TicketRef,
   WaitingItem,
 } from "./types";
@@ -53,6 +54,7 @@ export interface WorkdayViewProps {
 }
 
 const COLLAPSED_KEY = "dev-home-workday-collapsed";
+const SECTION_IDS = ["done", "workingOn", "reviewing", "blockers", "waiting", "notStarted"];
 const FILTER_KEY = "dev-home-workday-filter";
 const LOOKBACK_KEY = "dev-home-workday-lookback";
 const FILTERS = ["all", "sprint", "off"] as const satisfies readonly SprintFilter[];
@@ -142,67 +144,42 @@ function DoneRow({
   );
 }
 
-function BlockerRow({
-  item,
-  jiraBaseUrl,
-  onOpen,
-}: {
-  item: BlockerItem;
-  jiraBaseUrl: string;
-  onOpen: OpenPR;
-}) {
-  if (item.kind === "flagged") {
-    return (
-      <div className="workday-row">
-        <Badge variant="danger">Flagged</Badge>
-        <TicketLabel ticket={item.ticket} jiraBaseUrl={jiraBaseUrl} />
-        <span className="workday-row-title">{item.ticket.summary}</span>
-      </div>
-    );
-  }
+/** A ticket group that keeps its source items, for header pills and row suffixes. */
+type ItemGroup<T> = TicketGroup & { items: T[] };
+
+/** Bucket items by ticket for TicketGroupList; PR-less items only shape the header. */
+function toItemGroups<T extends { ticket: TicketRef | null }>(
+  items: T[],
+  prOf: (item: T) => GitHubPR | null,
+): ItemGroup<T>[] {
+  return groupItemsByTicket(items).map((g) => ({
+    ticket: g.ticket,
+    prs: g.items.map(prOf).filter((pr): pr is GitHubPR => pr !== null),
+    items: g.items,
+  }));
+}
+
+const blockerPR = (item: BlockerItem) => (item.kind === "pr" ? item.pr : null);
+const waitingPR = (item: WaitingItem) => (item.kind === "code-review" ? null : item.pr);
+
+function BlockerReasons({ reasons }: { reasons: string[] }) {
   return (
-    <div className="workday-row">
-      <TicketLabel ticket={item.ticket} jiraBaseUrl={jiraBaseUrl} />
-      <PRTitle pr={item.pr} onOpen={onOpen} />
-      {item.reasons.map((r) => (
+    <>
+      {reasons.map((r) => (
         // A missing reviewer is a nudge; CI/conflicts/requested changes block.
         <Badge key={r} variant={r === "No reviewer requested" ? "warning" : "danger"}>
           {r}
         </Badge>
       ))}
-    </div>
+    </>
   );
 }
 
-function WaitingRow({
-  item,
-  jiraBaseUrl,
-  onOpen,
-}: {
-  item: WaitingItem;
-  jiraBaseUrl: string;
-  onOpen: OpenPR;
-}) {
-  if (item.kind === "code-review") {
-    return (
-      <div className="workday-row">
-        <TicketLabel ticket={item.ticket} jiraBaseUrl={jiraBaseUrl} />
-        <span className="workday-row-title">{item.ticket.summary}</span>
-        <span className="workday-row-meta">Code Review · {item.reviewers.join(", ")}</span>
-      </div>
-    );
-  }
-  return (
-    <div className="workday-row">
-      <TicketLabel ticket={item.ticket} jiraBaseUrl={jiraBaseUrl} />
-      <PRTitle pr={item.pr} onOpen={onOpen} />
-      <span className="workday-row-meta">
-        {item.kind === "your-move"
-          ? "Approved — your move"
-          : `Waiting on ${item.reviewers.length > 0 ? item.reviewers.join(", ") : "review"} · ${formatRelativeTime(item.since)}`}
-      </span>
-    </div>
-  );
+function waitingMeta(item: WaitingItem): string {
+  if (item.kind === "code-review") return `Code Review · ${item.reviewers.join(", ")}`;
+  if (item.kind === "your-move") return "Approved — your move";
+  const who = item.reviewers.length > 0 ? item.reviewers.join(", ") : "review";
+  return `Waiting on ${who} · ${formatRelativeTime(item.since)}`;
 }
 
 function NotStartedRow({ item, jiraBaseUrl }: { item: NotStartedItem; jiraBaseUrl: string }) {
@@ -248,14 +225,23 @@ export function WorkdayView(props: WorkdayViewProps) {
   const [filter, setFilter] = useStoredState<SprintFilter>(FILTER_KEY, "all", FILTERS);
   const [lookback, setLookback] = useStoredState<Lookback>(LOOKBACK_KEY, "workday", LOOKBACKS);
   const [showAllOff, setShowAllOff] = useState(false);
-  const [collapsed, , toggleSection] = usePersistedSet(COLLAPSED_KEY);
+  const [collapsed, setCollapsed, toggleSection] = usePersistedSet(COLLAPSED_KEY);
+  const allCollapsed = SECTION_IDS.every((id) => collapsed.has(id));
+  const toggleCollapseAll = () => setCollapsed(new Set(allCollapsed ? [] : SECTION_IDS));
   const sectionToggle = (id: string) => ({
     collapsed: collapsed.has(id),
     onToggle: () => toggleSection(id),
   });
   const [selectedPR, setSelectedPR] = useState<GitHubPR | null>(null);
-  const { copy: copyText, onCopyBranch, onCopyLink, onCopyRef, toast } = usePRCopyActions();
-  const prActions = { onOpen: setSelectedPR, onCopyBranch, onCopyLink, onCopyRef };
+  const {
+    copy: copyText,
+    onCopyBranch,
+    onCopyLink,
+    onCopyRef,
+    onCopyTicket,
+    toast,
+  } = usePRCopyActions();
+  const prActions = { onOpen: setSelectedPR, onCopyBranch, onCopyLink, onCopyRef, onCopyTicket };
 
   // Keyed on the joined string: callers often pass a fresh array each render.
   const weekendKey = weekendDays.join(",");
@@ -273,6 +259,31 @@ export function WorkdayView(props: WorkdayViewProps) {
     [openPRs, reviewRequests, reviewingPRs, assignedIssues, allIssues, extras, now],
   );
   const filtered = useMemo(() => filterWorkday(sections, filter), [sections, filter]);
+  const blockerGroups = useMemo(
+    () => toItemGroups(filtered.blockers.items, blockerPR),
+    [filtered.blockers.items],
+  );
+  const waitingGroups = useMemo(
+    () => toItemGroups(filtered.waiting.items, waitingPR),
+    [filtered.waiting.items],
+  );
+  // Row suffixes look up their PR's item by URL.
+  const blockerByUrl = useMemo(
+    () =>
+      new Map(
+        filtered.blockers.items.flatMap((i) => (i.kind === "pr" ? [[i.pr.html_url, i]] : [])),
+      ),
+    [filtered.blockers.items],
+  );
+  const waitingByUrl = useMemo(
+    () =>
+      new Map(
+        filtered.waiting.items.flatMap((i) =>
+          i.kind === "code-review" ? [] : [[i.pr.html_url, i]],
+        ),
+      ),
+    [filtered.waiting.items],
+  );
 
   // StandupNotes seeds this on mount and keeps it in sync.
   const [noteText, setNoteText] = useState("");
@@ -315,6 +326,15 @@ export function WorkdayView(props: WorkdayViewProps) {
           activeKey={filter}
           onChange={(k) => setFilter(k as SprintFilter)}
         />
+        <Button
+          variant="outline-secondary"
+          size="sm"
+          onClick={toggleCollapseAll}
+          title={allCollapsed ? "Expand all sections" : "Collapse all sections"}
+        >
+          {allCollapsed ? <IconFoldDown size={14} /> : <IconFold size={14} />}{" "}
+          {allCollapsed ? "Expand all" : "Collapse all"}
+        </Button>
         <Button variant="outline-secondary" size="sm" onClick={onRefresh}>
           <IconRefresh size={14} /> Refresh
         </Button>
@@ -403,14 +423,20 @@ export function WorkdayView(props: WorkdayViewProps) {
             error={blockers.error}
             empty="Nothing blocked"
           >
-            {blockers.items.map((item) => (
-              <BlockerRow
-                key={item.kind === "pr" ? item.pr.html_url : `flagged:${item.ticket.key}`}
-                item={item}
-                jiraBaseUrl={jiraBaseUrl}
-                onOpen={setSelectedPR}
-              />
-            ))}
+            <TicketGroupList
+              groups={blockerGroups}
+              fields={MY_PR_FIELDS}
+              jiraBaseUrl={jiraBaseUrl}
+              {...prActions}
+              showNoPR={false}
+              groupExtra={(g) =>
+                g.items.some((i) => i.kind === "flagged") && <Badge variant="danger">Flagged</Badge>
+              }
+              rowSuffix={(pr) => {
+                const item = blockerByUrl.get(pr.html_url);
+                return item?.kind === "pr" && <BlockerReasons reasons={item.reasons} />;
+              }}
+            />
           </WorkdaySection>
 
           <WorkdaySection
@@ -421,14 +447,26 @@ export function WorkdayView(props: WorkdayViewProps) {
             error={waiting.error}
             empty="Not waiting on anyone"
           >
-            {waiting.items.map((item) => (
-              <WaitingRow
-                key={item.kind === "code-review" ? `cr:${item.ticket.key}` : item.pr.html_url}
-                item={item}
-                jiraBaseUrl={jiraBaseUrl}
-                onOpen={setSelectedPR}
-              />
-            ))}
+            <TicketGroupList
+              groups={waitingGroups}
+              fields={MY_PR_FIELDS}
+              jiraBaseUrl={jiraBaseUrl}
+              {...prActions}
+              showNoPR={false}
+              groupExtra={(g) =>
+                g.items
+                  .filter((i) => i.kind === "code-review")
+                  .map((i) => (
+                    <span key="cr" className="workday-row-meta">
+                      {waitingMeta(i)}
+                    </span>
+                  ))
+              }
+              rowSuffix={(pr) => {
+                const item = waitingByUrl.get(pr.html_url);
+                return item && <span className="workday-row-meta">{waitingMeta(item)}</span>;
+              }}
+            />
           </WorkdaySection>
 
           <WorkdaySection

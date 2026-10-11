@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { GitHubPR, JiraIssue, SprintTicket, OffSprintTicket } from "../../types";
 import { EMPTY_EXTRAS, type WorkdayExtras } from "../../services/workday";
-import { buildWorkday, filterWorkday, statusCategoryOf } from "./buildWorkday";
-import type { WorkdayInputs } from "./types";
+import { buildWorkday, filterWorkday, groupItemsByTicket, statusCategoryOf } from "./buildWorkday";
+import type { TicketRef, WorkdayInputs } from "./types";
 
 const NOW = new Date("2026-10-11T10:00:00Z");
 
@@ -428,5 +428,30 @@ describe("filterWorkday", () => {
 
   it("all is identity", () => {
     expect(filterWorkday(s, "all")).toBe(s);
+  });
+});
+
+describe("groupItemsByTicket", () => {
+  const t = (key: string): TicketRef => ({
+    key,
+    summary: "",
+    statusName: null,
+    offSprint: false,
+    updated: null,
+  });
+
+  it("buckets by ticket key in first-seen order, ticketless last", () => {
+    const items = [
+      { id: 1, ticket: null },
+      { id: 2, ticket: t("A-1") },
+      { id: 3, ticket: t("B-2") },
+      { id: 4, ticket: t("a-1") },
+    ];
+    const groups = groupItemsByTicket(items);
+    expect(groups.map((g) => [g.ticket?.key ?? null, g.items.map((i) => i.id)])).toEqual([
+      ["A-1", [2, 4]],
+      ["B-2", [3]],
+      [null, [1]],
+    ]);
   });
 });

@@ -1,6 +1,7 @@
 import React from "react";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronRight, IconCopy, IconExternalLink } from "@tabler/icons-react";
 import { jiraBrowseUrl } from "../utils/tickets";
+import { formatRelativeTime, parseTimestamp } from "../utils/time";
 import { ticketClickHandler, useOptionalJiraDrawer } from "../context/JiraDrawerContext";
 import "./TicketGroupHeader.css";
 
@@ -29,6 +30,10 @@ interface TicketGroupHeaderProps {
   summary?: string;
   /** PR count badge; hidden when 0. */
   count: number;
+  /** Copies the ticket key (surfaces a toast); the button is hidden when omitted. */
+  onCopyKey?: (key: string) => void;
+  /** Last-updated time shown at the right end; hidden when absent. */
+  updatedAt?: string | null;
   /** Makes the header a toggle. Omit for a static header. */
   onToggle?: () => void;
   collapsed?: boolean;
@@ -43,6 +48,8 @@ export function TicketGroupHeader({
   jiraBaseUrl,
   summary,
   count,
+  updatedAt,
+  onCopyKey,
   onToggle,
   collapsed = false,
   className,
@@ -76,7 +83,38 @@ export function TicketGroupHeader({
         </span>
       )}
       {ticket ? (
-        <TicketChip ticket={ticket} jiraBaseUrl={jiraBaseUrl} />
+        <>
+          <TicketChip ticket={ticket} jiraBaseUrl={jiraBaseUrl} />
+          {onCopyKey && (
+            <button
+              type="button"
+              className="pr-cluster-icon-btn"
+              title="Copy ticket key"
+              aria-label={`Copy ${ticket}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopyKey(ticket);
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <IconCopy size={14} stroke={1.8} />
+            </button>
+          )}
+          {jiraBaseUrl && (
+            <a
+              className="pr-cluster-ext"
+              href={jiraBrowseUrl(jiraBaseUrl, ticket)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open in Jira"
+              aria-label={`Open ${ticket} in Jira`}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <IconExternalLink size={14} stroke={1.8} />
+            </a>
+          )}
+        </>
       ) : (
         <span className="pr-cluster-no-ticket">No ticket</span>
       )}
@@ -85,6 +123,11 @@ export function TicketGroupHeader({
       {count > 0 && (
         <span className="pr-cluster-count" title={`${count} PRs`}>
           {count}
+        </span>
+      )}
+      {updatedAt && (
+        <span className="pr-cluster-updated" title={parseTimestamp(updatedAt).toLocaleString()}>
+          updated {formatRelativeTime(updatedAt)}
         </span>
       )}
     </div>

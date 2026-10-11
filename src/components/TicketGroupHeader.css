@@ -44,6 +44,50 @@
   text-align: center;
 }
 
+/* Opens the ticket in a new tab (the chip itself opens the drawer). */
+.pr-cluster-ext {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  transition: color 120ms ease;
+}
+
+.pr-cluster-ext:hover {
+  color: var(--color-accent);
+}
+
+/* Copies the ticket key. */
+.pr-cluster-icon-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  line-height: 0;
+  transition: color 120ms ease;
+}
+
+.pr-cluster-icon-btn:hover {
+  color: var(--color-accent);
+}
+
+.pr-cluster-icon-btn:active {
+  transform: scale(0.9);
+}
+
+/* Last-updated time, pushed to the right end of the row. */
+.pr-cluster-updated {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 /* Non-collapsible header (e.g. Workday groups): no toggle affordance. */
 .pr-cluster-header--static {
   cursor: default;

@@ -134,7 +134,7 @@ const EMPTY_STATE: Record<
   },
 };
 
-/** Stable default so the ticketTitles memo isn't invalidated every render. */
+/** Stable default so the ticketIssues memo isn't invalidated every render. */
 const NO_ISSUES: JiraIssue[] = [];
 
 export interface PRTableHandle {
@@ -161,7 +161,7 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
   ref,
 ) {
   const [selectedPR, setSelectedPR] = useState<GitHubPR | null>(null);
-  const { onCopyBranch, onCopyLink, onCopyRef, toast } = usePRCopyActions();
+  const { onCopyBranch, onCopyLink, onCopyRef, onCopyTicket, toast } = usePRCopyActions();
   const noteCount = usePRNoteCounts();
 
   // Controlled when the parent supplies `collapsedGroups`; otherwise the table
@@ -176,14 +176,14 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
   const isMergedVariant = variant === "recently-merged" || variant === "recently-merged-org";
   const fields = VARIANT_FIELDS[variant];
 
-  const ticketTitles = useMemo(
-    () => new Map(jiraIssues.map((issue) => [issue.key.toUpperCase(), issue.summary])),
+  const ticketIssues = useMemo(
+    () => new Map(jiraIssues.map((issue) => [issue.key.toUpperCase(), issue])),
     [jiraIssues],
   );
 
   const groups = useMemo(() => groupByTicket(prs), [prs]);
   const groupTickets = useMemo(
-    () => groups.filter((g) => g.ticket !== null && g.prs.length > 1).map((g) => g.ticket!),
+    () => groups.filter((g) => g.ticket !== null).map((g) => g.ticket!),
     [groups],
   );
   const hasGroups = groupTickets.length > 0;
@@ -243,11 +243,11 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
 
       <div className={embedded ? "pr-card-list" : "pr-list-card pr-card-list"}>
         {groups.map((group, groupIdx) => {
-          const isCluster = group.ticket !== null && group.prs.length > 1;
+          // Every ticketed PR sits under a header — even a lone one — so the
+          // ticket summary shows and the chip opens the Jira drawer.
+          const isCluster = group.ticket !== null;
           const isCollapsed = isCluster && collapsed.has(group.ticket!);
-          const singleTicket =
-            group.ticket !== null && group.prs.length === 1 ? group.ticket : null;
-          const summary = group.ticket ? ticketTitles.get(group.ticket.toUpperCase()) : undefined;
+          const issue = group.ticket ? ticketIssues.get(group.ticket.toUpperCase()) : undefined;
           const groupKey = group.ticket ?? `ungrouped-${groupIdx}`;
           return (
             <React.Fragment key={groupKey}>
@@ -255,8 +255,11 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
                 <TicketGroupHeader
                   ticket={group.ticket}
                   jiraBaseUrl={jiraBaseUrl}
-                  summary={summary}
+                  summary={issue?.summary}
+                  onCopyKey={onCopyTicket}
                   count={group.prs.length}
+                  // Jira's updated time, else the newest PR (groups are updated_at DESC).
+                  updatedAt={issue?.updated || group.prs[0].updated_at}
                   collapsed={isCollapsed}
                   onToggle={() => toggleGroup(group.ticket!)}
                 />
@@ -268,7 +271,6 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
                     pr={pr}
                     fields={fields}
                     jiraBaseUrl={jiraBaseUrl}
-                    singleTicket={singleTicket}
                     clustered={isCluster}
                     showReasonChips={!!reasonChips && categorizeOpenPR(pr) === "needs-action"}
                     noteCount={noteCount(pr)}

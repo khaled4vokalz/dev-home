@@ -17,6 +17,8 @@ export interface TicketRef {
   summary: string;
   statusName: string | null;
   offSprint: boolean;
+  /** Jira's last-updated time, when the issue was fetched. */
+  updated: string | null;
 }
 
 /** A ticket with my PRs under it; `prs` empty → "No PR yet"; `ticket` null → "No ticket". */

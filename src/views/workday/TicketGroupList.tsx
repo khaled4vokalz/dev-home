@@ -20,17 +20,31 @@ export function OffSprintPill() {
   return <span className="workday-pill workday-pill--offsprint">Off-sprint</span>;
 }
 
-interface TicketGroupListProps {
-  groups: TicketGroup[];
+/** Most recent updated_at across PRs, or null for none. */
+function latestUpdate(prs: GitHubPR[]): string | null {
+  return prs.reduce<string | null>(
+    (latest, pr) =>
+      !latest || new Date(pr.updated_at) > new Date(latest) ? pr.updated_at : latest,
+    null,
+  );
+}
+
+interface TicketGroupListProps<G extends TicketGroup> {
+  groups: G[];
   fields: PRCardFields;
   jiraBaseUrl: string;
   /** Optional trailing label per PR row (e.g. "Review requested"). */
   rowSuffix?: (pr: GitHubPR) => React.ReactNode;
+  /** Optional extra pills on a group header (e.g. "Flagged"). */
+  groupExtra?: (group: G) => React.ReactNode;
+  /** Show "No PR yet" on PR-less groups; off where a PR-less ticket means something else. */
+  showNoPR?: boolean;
   /** Opens the PR detail modal. */
   onOpen: (pr: GitHubPR) => void;
   onCopyBranch?: (branch: string) => void;
   onCopyLink?: (url: string) => void;
   onCopyRef?: (ref: string) => void;
+  onCopyTicket?: (key: string) => void;
 }
 
 /**
@@ -38,16 +52,19 @@ interface TicketGroupListProps {
  * header (even single-PR ones) so ticket context is always visible, and
  * ticket-only groups render as a "No PR yet" header with no rows.
  */
-export function TicketGroupList({
+export function TicketGroupList<G extends TicketGroup>({
   groups,
   fields,
   jiraBaseUrl,
   rowSuffix,
+  groupExtra,
+  showNoPR = true,
   onOpen,
   onCopyBranch,
   onCopyLink,
   onCopyRef,
-}: TicketGroupListProps) {
+  onCopyTicket,
+}: TicketGroupListProps<G>) {
   const noteCount = usePRNoteCounts();
   return (
     <>
@@ -59,10 +76,13 @@ export function TicketGroupList({
             jiraBaseUrl={jiraBaseUrl}
             summary={g.ticket?.summary}
             count={g.prs.length}
+            onCopyKey={onCopyTicket}
+            updatedAt={g.ticket?.updated ?? latestUpdate(g.prs)}
           >
             {g.ticket?.offSprint && <OffSprintPill />}
             {g.ticket?.statusName && <Badge variant="info">{g.ticket.statusName}</Badge>}
-            {g.prs.length === 0 && (
+            {groupExtra?.(g)}
+            {showNoPR && g.prs.length === 0 && (
               <span className="workday-pill workday-pill--nopr">No PR yet</span>
             )}
           </TicketGroupHeader>

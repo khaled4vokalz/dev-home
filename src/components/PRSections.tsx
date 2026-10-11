@@ -57,13 +57,13 @@ export const PRSections = forwardRef<PRSectionsHandle, PRSectionsProps>(function
     [grouped],
   );
 
-  // All collapsible ticket groups (>1 PR) across every visible section. These are
+  // All collapsible ticket groups across every visible section. These are
   // the groups the "collapse/expand all" button acts on.
   const allGroupTickets = useMemo(() => {
     const tickets = new Set<string>();
     for (const section of visibleSections) {
       for (const group of groupByTicket(grouped[section.id])) {
-        if (group.ticket && group.prs.length > 1) tickets.add(group.ticket);
+        if (group.ticket) tickets.add(group.ticket);
       }
     }
     return tickets;

@@ -256,6 +256,8 @@ describe("WorkdayView", () => {
 });
 
 describe("WorkdaySection", () => {
+  beforeEach(() => localStorage.clear());
+
   it("hides the empty line when there is an error", () => {
     render(
       <WorkdaySection
@@ -278,17 +280,53 @@ describe("WorkdaySection", () => {
     localStorage.clear();
     renderView();
     const toggle = screen.getByRole("button", { name: /Working on/ });
+    const prIn = (title: string) =>
+      within(screen.getByText(title).closest(".workday-section") as HTMLElement).queryByText(
+        "WMU-402 delete",
+      );
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("WMU-402 delete")).toBeTruthy();
+    expect(prIn("Working on")).toBeTruthy();
     fireEvent.click(toggle);
-    expect(screen.queryByText("WMU-402 delete")).toBeNull();
+    expect(prIn("Working on")).toBeNull();
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     cleanup();
 
     renderView();
-    expect(screen.queryByText("WMU-402 delete")).toBeNull();
+    expect(prIn("Working on")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Working on/ }));
-    expect(screen.getByText("WMU-402 delete")).toBeTruthy();
+    expect(prIn("Working on")).toBeTruthy();
+  });
+
+  it("collapses and expands every section at once", () => {
+    renderView();
+    const sectionToggles = () => [...document.querySelectorAll(".workday-section-toggle")];
+    expect(sectionToggles().every((b) => b.getAttribute("aria-expanded") === "true")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Collapse all/ }));
+    expect(sectionToggles().every((b) => b.getAttribute("aria-expanded") === "false")).toBe(true);
+    expect(screen.queryByText("WMU-402 delete")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Expand all/ }));
+    expect(sectionToggles().every((b) => b.getAttribute("aria-expanded") === "true")).toBe(true);
+  });
+
+  it("groups blockers under their ticket header with the reasons on the PR row", () => {
+    renderView({
+      openPRs: [{ ...prs[0], requested_reviewers: [] }],
+      allIssues: [
+        {
+          key: "WMU-402",
+          summary: "Delete assets",
+          status: { name: "In Progress" },
+        } as JiraIssue,
+      ],
+    });
+    const section = screen
+      .getByText("Blockers / needs attention")
+      .closest(".workday-section") as HTMLElement;
+    const header = section.querySelector(".pr-cluster-header") as HTMLElement;
+    expect(within(header).getByText("WMU-402")).toBeTruthy();
+    expect(within(header).getByText("Delete assets")).toBeTruthy();
+    expect(within(section).getByText("WMU-402 delete")).toBeTruthy();
+    expect(within(section).getByText("No reviewer requested")).toBeTruthy();
   });
 });
 
