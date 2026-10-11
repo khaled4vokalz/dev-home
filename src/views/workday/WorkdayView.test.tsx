@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act, within } from "@testing-library/react";
+import { render, screen, fireEvent, act, within, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { GitHubPR, JiraIssue, Note } from "../../types";
 
@@ -259,7 +259,8 @@ describe("WorkdaySection", () => {
   it("hides the empty line when there is an error", () => {
     render(
       <WorkdaySection
-        id="done"
+        collapsed={false}
+        onToggle={() => {}}
         title="Done"
         count={0}
         loading={false}
@@ -275,30 +276,19 @@ describe("WorkdaySection", () => {
 
   it("collapses and expands from the header, remembering the choice", () => {
     localStorage.clear();
-    const view = () => (
-      <WorkdaySection
-        id="workingOn"
-        title="Working on"
-        count={1}
-        loading={false}
-        error={null}
-        empty=""
-      >
-        <div>row one</div>
-      </WorkdaySection>
-    );
-    const { unmount } = render(view());
+    renderView();
     const toggle = screen.getByRole("button", { name: /Working on/ });
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("WMU-402 delete")).toBeTruthy();
     fireEvent.click(toggle);
-    expect(screen.queryByText("row one")).toBeNull();
+    expect(screen.queryByText("WMU-402 delete")).toBeNull();
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    unmount();
+    cleanup();
 
-    render(view());
-    expect(screen.queryByText("row one")).toBeNull();
+    renderView();
+    expect(screen.queryByText("WMU-402 delete")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Working on/ }));
-    expect(screen.getByText("row one")).toBeTruthy();
+    expect(screen.getByText("WMU-402 delete")).toBeTruthy();
   });
 });
 

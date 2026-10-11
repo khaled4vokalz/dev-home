@@ -33,40 +33,6 @@
   margin-bottom: var(--space-4);
 }
 
-/* Segmented toggle: header sprint filter and the Done lookback. */
-.workday-segmented {
-  display: inline-flex;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  text-transform: none;
-  letter-spacing: normal;
-}
-
-.workday-segmented button {
-  border: 0;
-  border-right: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
-  font-weight: 500;
-  padding: 3px 10px;
-  cursor: pointer;
-}
-
-.workday-segmented button:last-child {
-  border-right: 0;
-}
-
-.workday-segmented button:hover {
-  color: var(--color-text-primary);
-}
-
-.workday-segmented button.is-active {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
-}
-
 /* Two columns: sections left, sticky notes + preview right. */
 .workday {
   display: grid;
@@ -215,13 +181,7 @@ button.workday-row-title:hover {
 
 /* Every ticket gets a header here, so it isn't a click-to-collapse cluster. */
 .workday-group-header {
-  cursor: default;
   padding: 7px var(--space-4);
-}
-
-.workday-no-ticket {
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
 }
 
 .workday-pr-row {

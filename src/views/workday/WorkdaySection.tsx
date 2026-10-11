@@ -1,23 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import Card from "react-bootstrap/Card";
 import { Badge } from "../../components/primitives/Badge";
 import { SectionHeader } from "../../components/primitives/SectionHeader";
 
-const STORAGE_KEY = "dev-home-workday-collapsed";
-
-function readCollapsed(): string[] {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
-    return Array.isArray(saved) ? saved : [];
-  } catch {
-    return [];
-  }
-}
-
 interface WorkdaySectionProps {
-  /** Stable key for the persisted collapsed state (titles can change). */
-  id: string;
   title: string;
   count: number;
   loading: boolean;
@@ -25,31 +12,27 @@ interface WorkdaySectionProps {
   /** Muted one-liner shown when there's nothing to list. */
   empty: string;
   actions?: React.ReactNode;
+  collapsed: boolean;
+  onToggle: () => void;
   children: React.ReactNode;
 }
 
 /**
  * One card on the Workday page. Shows skeleton bars only while loading with
  * nothing to show yet; an error is an inline line that keeps any items visible.
- * The header toggles the body; collapsed sections are remembered per `id`.
+ * The header toggles the body; the parent owns (and persists) collapsed state.
  */
 export function WorkdaySection({
-  id,
   title,
   count,
   loading,
   error,
   empty,
   actions,
+  collapsed,
+  onToggle,
   children,
 }: WorkdaySectionProps) {
-  const [collapsed, setCollapsed] = useState(() => readCollapsed().includes(id));
-  const toggle = () => {
-    const next = !collapsed;
-    const others = readCollapsed().filter((k) => k !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next ? [...others, id] : others));
-    setCollapsed(next);
-  };
   const Chevron = collapsed ? IconChevronRight : IconChevronDown;
 
   return (
@@ -62,7 +45,7 @@ export function WorkdaySection({
           <button
             type="button"
             className="workday-section-toggle"
-            onClick={toggle}
+            onClick={onToggle}
             aria-expanded={!collapsed}
           >
             <Chevron size={16} stroke={2} className="workday-section-chevron" />

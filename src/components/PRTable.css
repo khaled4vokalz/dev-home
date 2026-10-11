@@ -222,50 +222,6 @@
    grouping without another nested box.
    ============================================ */
 
-.pr-cluster-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 10px 20px;
-  background-color: var(--color-accent-bg-subtle);
-  cursor: pointer;
-  user-select: none;
-}
-
-.pr-cluster-header:hover {
-  background-color: var(--color-bg-hover);
-}
-
-.pr-cluster-chevron {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-}
-
-.pr-cluster-summary {
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-/* PR-count badge sitting next to the ticket title (mirrors .pr-section-count). */
-.pr-cluster-count {
-  flex-shrink: 0;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-pill);
-  padding: 1px 8px;
-  min-width: 20px;
-  text-align: center;
-}
-
 /* Cluster member rows: indented, with a short accent rail in the left gutter. */
 .pr-card--clustered {
   padding-left: 45px;
@@ -279,28 +235,4 @@
   bottom: 0;
   width: 2px;
   background: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-}
-
-/* Ticket chip = the Jira link on cluster headers. */
-.ticket-chip {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--color-accent);
-  background: var(--color-accent-bg-subtle);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
-  border-radius: var(--radius-sm);
-  padding: 0 6px;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-a.ticket-chip:hover {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
 }

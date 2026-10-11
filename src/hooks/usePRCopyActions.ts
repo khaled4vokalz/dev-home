@@ -1,0 +1,35 @@
+import { useCallback } from "react";
+import { useToast } from "../components/Toast";
+
+/**
+ * Clipboard actions for PR rows, confirmed with a toast. Render
+ * `<Toast {...toast} />` once alongside the rows.
+ */
+export function usePRCopyActions() {
+  const toast = useToast();
+  const showToast = toast.show;
+
+  const copy = useCallback(
+    async (text: string, confirmation: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(confirmation);
+      } catch {
+        showToast("Couldn't copy to clipboard");
+      }
+    },
+    [showToast],
+  );
+
+  const onCopyBranch = useCallback(
+    (branch: string) => copy(branch, "Copied branch name to clipboard"),
+    [copy],
+  );
+  const onCopyLink = useCallback((url: string) => copy(url, "Copied PR link to clipboard"), [copy]);
+  const onCopyRef = useCallback(
+    (ref: string) => copy(ref, "Copied PR reference to clipboard"),
+    [copy],
+  );
+
+  return { copy, onCopyBranch, onCopyLink, onCopyRef, toast };
+}

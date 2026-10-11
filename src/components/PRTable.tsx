@@ -12,25 +12,21 @@ import {
   IconGitPullRequest,
   IconEye,
   IconBuilding,
-  IconChevronRight,
-  IconChevronDown,
   IconFold,
   IconFoldDown,
 } from "@tabler/icons-react";
 import { GitHubPR, JiraIssue } from "../types";
-import { formatRelativeTime } from "../utils/time";
 import { groupByTicket } from "../utils/tickets";
 import { categorizeOpenPR } from "../utils/prCategories";
-import { DescriptionModal } from "./DescriptionModal";
 import { EmptyState } from "./EmptyState";
 import { PRCard, PRCardFields } from "./PRCard";
-import { useOptionalNotes } from "../context/NotesContext";
-import { normalizeNoteRef, prNoteKey } from "../utils/prNotes";
+import { PRDetailModal } from "./PRDetailModal";
+import { TicketGroupHeader } from "./TicketGroupHeader";
+import { Toast } from "./Toast";
+import { usePersistedSet } from "../hooks/usePersistedSet";
+import { usePRCopyActions } from "../hooks/usePRCopyActions";
+import { usePRNoteCounts } from "../hooks/usePRNoteCounts";
 import "./PRTable.css";
-import { jiraBrowseUrl } from "../utils/tickets";
-import { ticketClickHandler, useOptionalJiraDrawer } from "../context/JiraDrawerContext";
-import { Toast, useToast } from "./Toast";
-import { usePRBody } from "../hooks/usePRBody";
 
 type PRTableVariant =
   | "my-prs"
@@ -68,7 +64,7 @@ interface PRTableProps {
 }
 
 /** Which card fields each variant shows. */
-const VARIANT_FIELDS: Record<PRTableVariant, PRCardFields> = {
+export const VARIANT_FIELDS: Record<PRTableVariant, PRCardFields> = {
   "my-prs": {
     showAuthor: false,
     showBranch: true,
@@ -138,24 +134,6 @@ const EMPTY_STATE: Record<
   },
 };
 
-/** Ticket key that opens the shared Jira drawer (or a plain chip when no Jira
-    base URL). Used on cluster headers, where the key labels the whole group. */
-export function TicketChip({ ticket, jiraBaseUrl }: { ticket: string; jiraBaseUrl?: string }) {
-  const openIssue = useOptionalJiraDrawer();
-  if (!jiraBaseUrl) return <span className="ticket-chip">{ticket}</span>;
-  return (
-    <a
-      className="ticket-chip"
-      href={jiraBrowseUrl(jiraBaseUrl, ticket)}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={ticketClickHandler(openIssue, ticket)}
-    >
-      {ticket}
-    </a>
-  );
-}
-
 /** Stable default so the ticketTitles memo isn't invalidated every render. */
 const NO_ISSUES: JiraIssue[] = [];
 
@@ -183,62 +161,17 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
   ref,
 ) {
   const [selectedPR, setSelectedPR] = useState<GitHubPR | null>(null);
-  const selectedBody = usePRBody(selectedPR);
-  // Transient "copied to clipboard" confirmation.
-  const copyToast = useToast();
-  const showCopyToast = copyToast.show;
+  const { onCopyBranch, onCopyLink, onCopyRef, toast } = usePRCopyActions();
+  const noteCount = usePRNoteCounts();
 
-  const copyToClipboard = useCallback(
-    (text: string, message: string) => {
-      navigator.clipboard
-        ?.writeText(text)
-        .then(() => {
-          showCopyToast(message);
-        })
-        .catch(() => {
-          /* clipboard unavailable (e.g. insecure context) — silently ignore */
-        });
-    },
-    [showCopyToast],
-  );
-
-  const handleCopyBranch = useCallback(
-    (branch: string) => copyToClipboard(branch, "Copied branch name to clipboard"),
-    [copyToClipboard],
-  );
-
-  const handleCopyLink = useCallback(
-    (url: string) => copyToClipboard(url, "Copied PR link to clipboard"),
-    [copyToClipboard],
-  );
-
-  const handleCopyRef = useCallback(
-    (ref: string) => copyToClipboard(ref, "Copied PR reference to clipboard"),
-    [copyToClipboard],
-  );
-
-  const storageKey = `dev-home-pr-collapsed-${variant}${storageKeyScope ? `-${storageKeyScope}` : ""}`;
   // Controlled when the parent supplies `collapsedGroups`; otherwise the table
   // owns its own localStorage-backed collapse state.
-  const isControlled = collapsedGroups !== undefined;
-  const [internalCollapsed, setInternalCollapsed] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
+  const storageKey = `dev-home-pr-collapsed-${variant}${storageKeyScope ? `-${storageKeyScope}` : ""}`;
+  const [internalCollapsed, setInternalCollapsed, toggleInternal] = usePersistedSet(
+    collapsedGroups ? null : storageKey,
+  );
   const collapsed = collapsedGroups ?? internalCollapsed;
-
-  useEffect(() => {
-    if (isControlled) return;
-    try {
-      localStorage.setItem(storageKey, JSON.stringify([...internalCollapsed]));
-    } catch {
-      /* quota exceeded */
-    }
-  }, [internalCollapsed, storageKey, isControlled]);
+  const toggleGroup = onToggleGroup ?? toggleInternal;
 
   const isMergedVariant = variant === "recently-merged" || variant === "recently-merged-org";
   const fields = VARIANT_FIELDS[variant];
@@ -247,36 +180,6 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
     () => new Map(jiraIssues.map((issue) => [issue.key.toUpperCase(), issue.summary])),
     [jiraIssues],
   );
-
-  const notesCtx = useOptionalNotes();
-  const notes = notesCtx?.notes ?? [];
-
-  const noteCountByKey = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const n of notes) {
-      if (n.resolved !== 0) continue;
-      const key = normalizeNoteRef(n.reference_id);
-      if (!key) continue;
-      m.set(key, (m.get(key) ?? 0) + 1);
-    }
-    return m;
-  }, [notes]);
-
-  const toggleGroup = (ticket: string) => {
-    if (onToggleGroup) {
-      onToggleGroup(ticket);
-      return;
-    }
-    setInternalCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(ticket)) {
-        next.delete(ticket);
-      } else {
-        next.add(ticket);
-      }
-      return next;
-    });
-  };
 
   const groups = useMemo(() => groupByTicket(prs), [prs]);
   const groupTickets = useMemo(
@@ -288,7 +191,7 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
 
   const toggleCollapseAll = useCallback(() => {
     setInternalCollapsed(allCollapsed ? new Set() : new Set(groupTickets));
-  }, [allCollapsed, groupTickets]);
+  }, [allCollapsed, groupTickets, setInternalCollapsed]);
 
   useImperativeHandle(ref, () => ({ hasGroups, allCollapsed, toggleCollapseAll }), [
     hasGroups,
@@ -349,31 +252,14 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
           return (
             <React.Fragment key={groupKey}>
               {isCluster && (
-                <div
-                  className="pr-cluster-header"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleGroup(group.ticket!)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleGroup(group.ticket!);
-                    }
-                  }}
-                >
-                  <span className="pr-cluster-chevron">
-                    {isCollapsed ? (
-                      <IconChevronRight size={14} stroke={2} />
-                    ) : (
-                      <IconChevronDown size={14} stroke={2} />
-                    )}
-                  </span>
-                  <TicketChip ticket={group.ticket!} jiraBaseUrl={jiraBaseUrl} />
-                  {summary && <span className="pr-cluster-summary">{summary}</span>}
-                  <span className="pr-cluster-count" title={`${group.prs.length} PRs`}>
-                    {group.prs.length}
-                  </span>
-                </div>
+                <TicketGroupHeader
+                  ticket={group.ticket}
+                  jiraBaseUrl={jiraBaseUrl}
+                  summary={summary}
+                  count={group.prs.length}
+                  collapsed={isCollapsed}
+                  onToggle={() => toggleGroup(group.ticket!)}
+                />
               )}
               {!isCollapsed &&
                 group.prs.map((pr) => (
@@ -385,11 +271,11 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
                     singleTicket={singleTicket}
                     clustered={isCluster}
                     showReasonChips={!!reasonChips && categorizeOpenPR(pr) === "needs-action"}
-                    noteCount={noteCountByKey.get(prNoteKey(pr)) ?? 0}
+                    noteCount={noteCount(pr)}
                     onOpen={setSelectedPR}
-                    onCopyBranch={handleCopyBranch}
-                    onCopyLink={handleCopyLink}
-                    onCopyRef={handleCopyRef}
+                    onCopyBranch={onCopyBranch}
+                    onCopyLink={onCopyLink}
+                    onCopyRef={onCopyRef}
                   />
                 ))}
             </React.Fragment>
@@ -397,20 +283,9 @@ export const PRTable = forwardRef<PRTableHandle, PRTableProps>(function PRTable(
         })}
       </div>
 
-      <DescriptionModal
-        show={!!selectedPR}
-        onHide={() => setSelectedPR(null)}
-        title={selectedPR ? `#${selectedPR.number} ${selectedPR.title}` : ""}
-        subtitle={`${selectedPR?.user.login} · ${selectedPR?.repo_full_name} · ${selectedPR?.head.ref} · ${formatRelativeTime(selectedPR?.created_at || "")}`}
-        description={selectedBody.body}
-        loading={selectedBody.loading}
-        url={selectedPR?.html_url}
-        jiraBaseUrl={jiraBaseUrl}
-        checks={selectedPR?.checks}
-        pr={selectedPR ?? undefined}
-      />
+      <PRDetailModal pr={selectedPR} onHide={() => setSelectedPR(null)} jiraBaseUrl={jiraBaseUrl} />
 
-      <Toast message={copyToast.message} visible={copyToast.visible} />
+      <Toast message={toast.message} visible={toast.visible} />
     </>
   );
 });

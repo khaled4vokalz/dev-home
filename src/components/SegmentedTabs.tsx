@@ -31,6 +31,7 @@ export const SegmentedTabs: React.FC<SegmentedTabsProps> = ({
             key={tab.key}
             type="button"
             className={`segmented-tab${activeKey === tab.key ? " active" : ""}`}
+            aria-pressed={activeKey === tab.key}
             onClick={() => onChange(tab.key)}
           >
             {tab.label}

@@ -1,7 +1,6 @@
 import React, {
   forwardRef,
   useImperativeHandle,
-  useState,
   useEffect,
   useCallback,
   useMemo,
@@ -12,6 +11,7 @@ import { GitHubPR, JiraIssue } from "../types";
 import { PRTable } from "./PRTable";
 import { OPEN_PR_SECTIONS, groupPRsBySection, OpenPRSection } from "../utils/prCategories";
 import { groupByTicket } from "../utils/tickets";
+import { usePersistedSet } from "../hooks/usePersistedSet";
 import "./PRSections.css";
 
 interface PRSectionsProps {
@@ -46,59 +46,16 @@ export const PRSections = forwardRef<PRSectionsHandle, PRSectionsProps>(function
   { prs, loading, jiraIssues, jiraBaseUrl, onCollapseStateChange },
   ref,
 ) {
-  const [collapsed, setCollapsed] = useState<Set<OpenPRSection>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...collapsed]));
-    } catch {
-      /* quota exceeded */
-    }
-  }, [collapsed]);
-
+  const [collapsed, , toggleSection] = usePersistedSet<OpenPRSection>(STORAGE_KEY);
   // Collapsed Jira ticket groups, shared across every section's table. Ticket
   // keys are globally unique, so one set drives all tables uniformly.
-  const [collapsedTickets, setCollapsedTickets] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(TICKET_STORAGE_KEY);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(TICKET_STORAGE_KEY, JSON.stringify([...collapsedTickets]));
-    } catch {
-      /* quota exceeded */
-    }
-  }, [collapsedTickets]);
+  const [collapsedTickets, setCollapsedTickets, toggleTicket] = usePersistedSet(TICKET_STORAGE_KEY);
 
   const grouped = useMemo(() => groupPRsBySection(prs), [prs]);
   const visibleSections = useMemo(
     () => OPEN_PR_SECTIONS.filter((s) => grouped[s.id].length > 0),
     [grouped],
   );
-
-  const toggleSection = (id: OpenPRSection) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
 
   // All collapsible ticket groups (>1 PR) across every visible section. These are
   // the groups the "collapse/expand all" button acts on.
@@ -115,21 +72,9 @@ export const PRSections = forwardRef<PRSectionsHandle, PRSectionsProps>(function
   const hasGroups = allGroupTickets.size > 0;
   const allCollapsed = hasGroups && [...allGroupTickets].every((t) => collapsedTickets.has(t));
 
-  const toggleTicket = useCallback((ticket: string) => {
-    setCollapsedTickets((prev) => {
-      const next = new Set(prev);
-      if (next.has(ticket)) {
-        next.delete(ticket);
-      } else {
-        next.add(ticket);
-      }
-      return next;
-    });
-  }, []);
-
   const toggleCollapseAll = useCallback(() => {
     setCollapsedTickets(allCollapsed ? new Set() : new Set(allGroupTickets));
-  }, [allCollapsed, allGroupTickets]);
+  }, [allCollapsed, allGroupTickets, setCollapsedTickets]);
 
   useImperativeHandle(ref, () => ({ hasGroups, allCollapsed, toggleCollapseAll }), [
     hasGroups,

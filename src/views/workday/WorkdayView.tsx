@@ -6,10 +6,12 @@ import type { GitHubPR, JiraIssue, Note, NoteType, ReviewState } from "../../typ
 import { Badge, type BadgeVariant } from "../../components/primitives/Badge";
 import { SectionHeader } from "../../components/primitives/SectionHeader";
 import { EmptyState } from "../../components/EmptyState";
-import { TicketChip } from "../../components/PRTable";
-import { DescriptionModal } from "../../components/DescriptionModal";
-import { usePRBody } from "../../hooks/usePRBody";
-import { Toast, useToast } from "../../components/Toast";
+import { TicketChip } from "../../components/TicketGroupHeader";
+import { PRDetailModal } from "../../components/PRDetailModal";
+import { SegmentedTabs } from "../../components/SegmentedTabs";
+import { Toast } from "../../components/Toast";
+import { usePersistedSet } from "../../hooks/usePersistedSet";
+import { usePRCopyActions } from "../../hooks/usePRCopyActions";
 import { formatRelativeTime } from "../../utils/time";
 import { useWorkdayExtras } from "../../hooks/useWorkdayExtras";
 import { buildWorkday, filterWorkday } from "./buildWorkday";
@@ -50,6 +52,7 @@ export interface WorkdayViewProps {
   now?: Date;
 }
 
+const COLLAPSED_KEY = "dev-home-workday-collapsed";
 const FILTER_KEY = "dev-home-workday-filter";
 const LOOKBACK_KEY = "dev-home-workday-lookback";
 const FILTERS = ["all", "sprint", "off"] as const satisfies readonly SprintFilter[];
@@ -245,9 +248,14 @@ export function WorkdayView(props: WorkdayViewProps) {
   const [filter, setFilter] = useStoredState<SprintFilter>(FILTER_KEY, "all", FILTERS);
   const [lookback, setLookback] = useStoredState<Lookback>(LOOKBACK_KEY, "workday", LOOKBACKS);
   const [showAllOff, setShowAllOff] = useState(false);
-  const toast = useToast();
+  const [collapsed, , toggleSection] = usePersistedSet(COLLAPSED_KEY);
+  const sectionToggle = (id: string) => ({
+    collapsed: collapsed.has(id),
+    onToggle: () => toggleSection(id),
+  });
   const [selectedPR, setSelectedPR] = useState<GitHubPR | null>(null);
-  const selectedBody = usePRBody(selectedPR);
+  const { copy: copyText, onCopyBranch, onCopyLink, onCopyRef, toast } = usePRCopyActions();
+  const prActions = { onOpen: setSelectedPR, onCopyBranch, onCopyLink, onCopyRef };
 
   // Keyed on the joined string: callers often pass a fresh array each render.
   const weekendKey = weekendDays.join(",");
@@ -273,17 +281,7 @@ export function WorkdayView(props: WorkdayViewProps) {
     [filtered, noteText, now],
   );
 
-  const copyText = async (text: string, confirmation: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.show(confirmation);
-    } catch {
-      toast.show("Couldn't copy to clipboard");
-    }
-  };
   const copy = () => copyText(markdown, "Standup copied");
-  const copyBranch = (branch: string) => copyText(branch, "Copied branch name to clipboard");
-  const copyLink = (url: string) => copyText(url, "Copied PR link to clipboard");
 
   if (!configured) {
     return (
@@ -311,19 +309,12 @@ export function WorkdayView(props: WorkdayViewProps) {
         <h5>Workday</h5>
         <span className="workday-date-pill">{formatSinceLabel(now)}</span>
         <div className="workday-header-spacer" />
-        <div className="workday-segmented" role="group" aria-label="Sprint filter">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              type="button"
-              aria-pressed={filter === f}
-              className={filter === f ? "is-active" : ""}
-              onClick={() => setFilter(f)}
-            >
-              {filterLabels[f]}
-            </button>
-          ))}
-        </div>
+        <SegmentedTabs
+          className="inline-control"
+          tabs={FILTERS.map((f) => ({ key: f, label: filterLabels[f] }))}
+          activeKey={filter}
+          onChange={(k) => setFilter(k as SprintFilter)}
+        />
         <Button variant="outline-secondary" size="sm" onClick={onRefresh}>
           <IconRefresh size={14} /> Refresh
         </Button>
@@ -336,26 +327,19 @@ export function WorkdayView(props: WorkdayViewProps) {
       <div className="workday">
         <div className="workday-main">
           <WorkdaySection
-            id="done"
+            {...sectionToggle("done")}
             title={DONE_TITLES[lookback]}
             count={done.items.length}
             loading={done.loading}
             error={done.error}
             empty={`Nothing merged, reviewed or moved since ${sinceLabel}`}
             actions={
-              <div className="workday-segmented" role="group" aria-label="Lookback">
-                {LOOKBACKS.map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    aria-pressed={lookback === l}
-                    className={lookback === l ? "is-active" : ""}
-                    onClick={() => setLookback(l)}
-                  >
-                    {LOOKBACK_LABELS[l]}
-                  </button>
-                ))}
-              </div>
+              <SegmentedTabs
+                className="compact"
+                tabs={LOOKBACKS.map((l) => ({ key: l, label: LOOKBACK_LABELS[l] }))}
+                activeKey={lookback}
+                onChange={(k) => setLookback(k as Lookback)}
+              />
             }
           >
             {done.items.map((item) => (
@@ -369,7 +353,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
-            id="workingOn"
+            {...sectionToggle("workingOn")}
             title="Working on"
             count={workingOn.items.length}
             loading={loading}
@@ -380,14 +364,12 @@ export function WorkdayView(props: WorkdayViewProps) {
               groups={workingOn.items}
               fields={MY_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
-              onOpen={setSelectedPR}
-              onCopyBranch={copyBranch}
-              onCopyLink={copyLink}
+              {...prActions}
             />
           </WorkdaySection>
 
           <WorkdaySection
-            id="reviewing"
+            {...sectionToggle("reviewing")}
             title="Reviewing"
             count={reviewing.items.length}
             loading={loading}
@@ -398,9 +380,7 @@ export function WorkdayView(props: WorkdayViewProps) {
               groups={reviewing.items}
               fields={REVIEW_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
-              onOpen={setSelectedPR}
-              onCopyBranch={copyBranch}
-              onCopyLink={copyLink}
+              {...prActions}
               rowSuffix={(pr) =>
                 filtered.reviewRequestedUrls.has(pr.html_url) ? (
                   <Badge variant="warning" className="workday-review-pill">
@@ -416,7 +396,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
-            id="blockers"
+            {...sectionToggle("blockers")}
             title="Blockers / needs attention"
             count={blockers.items.length}
             loading={loading || blockers.loading}
@@ -434,7 +414,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
-            id="waiting"
+            {...sectionToggle("waiting")}
             title="Waiting on others"
             count={waiting.items.length}
             loading={loading}
@@ -452,7 +432,7 @@ export function WorkdayView(props: WorkdayViewProps) {
           </WorkdaySection>
 
           <WorkdaySection
-            id="notStarted"
+            {...sectionToggle("notStarted")}
             title="Assigned, not started"
             count={notStarted.items.length + offItems.length}
             loading={loading || notStarted.loading}
@@ -503,18 +483,7 @@ export function WorkdayView(props: WorkdayViewProps) {
         </div>
       </div>
 
-      <DescriptionModal
-        show={!!selectedPR}
-        onHide={() => setSelectedPR(null)}
-        title={selectedPR ? `#${selectedPR.number} ${selectedPR.title}` : ""}
-        subtitle={`${selectedPR?.user.login} · ${selectedPR?.repo_full_name} · ${selectedPR?.head.ref} · ${formatRelativeTime(selectedPR?.created_at || "")}`}
-        description={selectedBody.body}
-        loading={selectedBody.loading}
-        url={selectedPR?.html_url}
-        jiraBaseUrl={jiraBaseUrl}
-        checks={selectedPR?.checks}
-        pr={selectedPR ?? undefined}
-      />
+      <PRDetailModal pr={selectedPR} onHide={() => setSelectedPR(null)} jiraBaseUrl={jiraBaseUrl} />
 
       <Toast message={toast.message} visible={toast.visible} />
     </div>
