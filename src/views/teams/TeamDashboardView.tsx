@@ -7,6 +7,7 @@ import {
   IconChevronRight,
   IconChevronDown,
   IconRefresh,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 import { useTeams } from "../../hooks/useTeams";
 import { useTeamDashboard } from "../../hooks/useTeamDashboard";
@@ -94,6 +95,11 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
   // The sprint object currently on screen — used by the meta bar.
   const selectedSprint =
     dashboard?.sprints.find((s) => s.id === selectedSprintId) ?? dashboard?.sprint ?? null;
+
+  // The backend reports per-source failures as "Source: message" strings.
+  const jiraError =
+    dashboard?.errors.find((e) => e.startsWith("Jira:"))?.replace(/^Jira:\s*/, "") ?? null;
+  const otherErrors = dashboard?.errors.filter((e) => !e.startsWith("Jira:")) ?? [];
 
   const staleDaysMap = useMemo(() => {
     if (!dashboard) return new Map<string, number>();
@@ -198,21 +204,9 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
             ]}
           />
         )}
-      </div>
 
-      {error && <div className="alert alert-danger small">{error}</div>}
-      {!teamId && !loading && (
-        <EmptyState
-          icon={<IconChartBar size={32} />}
-          title="Select a team"
-          description="Pick a team to see its dashboard."
-        />
-      )}
-
-      {/* ---- Sprint tab: the Jira cockpit ---- */}
-      {teamId != null && (
-        <div className={tab === "sprint" ? "" : "d-none"}>
-          <div className="d-flex gap-2 mb-3 align-items-center flex-wrap">
+        {teamId != null && tab === "sprint" && (
+          <>
             {dashboard && dashboard.sprints.length > 0 && (
               <SearchableDropdown
                 items={sprintItems}
@@ -235,61 +229,102 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
             >
               <IconRefresh size={14} className={loading ? "spin" : ""} />
             </button>
-          </div>
+          </>
+        )}
+      </div>
 
+      {error && <div className="alert alert-danger small">{error}</div>}
+      {!teamId && !loading && (
+        <EmptyState
+          icon={<IconChartBar size={32} />}
+          title="Select a team"
+          description="Pick a team to see its dashboard."
+        />
+      )}
+
+      {/* ---- Sprint tab: the Jira cockpit ---- */}
+      {teamId != null && (
+        <div className={tab === "sprint" ? "" : "d-none"}>
           {dashboard && (
             <>
-              {dashboard.errors.length > 0 && (
+              {otherErrors.length > 0 && (
                 <div className="alert alert-warning small">
                   <ul className="mb-0 ps-3">
-                    {dashboard.errors.map((e, i) => (
+                    {otherErrors.map((e, i) => (
                       <li key={i}>{e}</li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              {/* Sprint meta */}
-              <SprintMetaBar
-                sprint={selectedSprint}
-                pace={dashboard.pace}
-                lastSynced={dashboard.syncedAt ?? null}
-                jiraBaseUrl={jiraBaseUrl}
-                boardId={dashboard.team.board?.id ?? null}
-              />
-
-              <div className="mb-3">
-                <EpicCards epics={dashboard.epics} onOpenRef={openRef} />
-              </div>
-
-              {/* Row 2 — Completion over time + Needs Attention */}
-              <div className="row g-3 mb-3">
-                <div className="col-lg-7">
-                  <LoadDistribution
-                    workload={dashboard.workload}
-                    loadBalance={dashboard.loadBalance}
-                    onOpenRef={openRef}
-                    staleDays={staleDaysMap}
+              {/* Without Jira the sprint panels would render empty data as if it
+                  were real ("No active sprint", WIP 0, everyone "normal"), so
+                  replace them with the error and a retry. */}
+              {jiraError ? (
+                <div className="border rounded mb-3">
+                  <EmptyState
+                    icon={<IconAlertTriangle size={32} />}
+                    title="Couldn't load sprint data from Jira"
+                    description={jiraError}
+                    action={
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 mt-2"
+                        onClick={refresh}
+                        disabled={loading}
+                      >
+                        <IconRefresh size={14} /> Retry
+                      </button>
+                    }
                   />
                 </div>
-                <div className="col-lg-5">
-                  <NeedsAttentionPanel
-                    needsAttention={dashboard.needsAttention}
-                    onOpenRef={openRef}
-                    staleDays={staleDaysMap}
+              ) : (
+                <>
+                  {/* Sprint meta */}
+                  <SprintMetaBar
+                    sprint={selectedSprint}
+                    pace={dashboard.pace}
+                    lastSynced={dashboard.syncedAt ?? null}
+                    jiraBaseUrl={jiraBaseUrl}
+                    boardId={dashboard.team.board?.id ?? null}
                   />
-                </div>
-              </div>
+
+                  <div className="mb-3">
+                    <EpicCards epics={dashboard.epics} onOpenRef={openRef} />
+                  </div>
+
+                  {/* Row 2 — Completion over time + Needs Attention */}
+                  <div className="row g-3 mb-3">
+                    <div className="col-lg-7">
+                      <LoadDistribution
+                        workload={dashboard.workload}
+                        loadBalance={dashboard.loadBalance}
+                        onOpenRef={openRef}
+                        staleDays={staleDaysMap}
+                      />
+                    </div>
+                    <div className="col-lg-5">
+                      <NeedsAttentionPanel
+                        needsAttention={dashboard.needsAttention}
+                        onOpenRef={openRef}
+                        staleDays={staleDaysMap}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="row g-3 mb-3">
-                <div className="col-lg-7">
+                <div className={jiraError ? "col-12" : "col-lg-7"}>
                   <div className="border rounded p-2 h-100">
                     <PrFlowSection prFlow={dashboard.prFlow} />
                   </div>
                 </div>
-                <div className="col-lg-5">
-                  <DeliveryHygiene hygiene={dashboard.hygiene} onOpenRef={openRef} />
-                </div>
+                {!jiraError && (
+                  <div className="col-lg-5">
+                    <DeliveryHygiene hygiene={dashboard.hygiene} onOpenRef={openRef} />
+                  </div>
+                )}
               </div>
 
               <div className="mb-3">
