@@ -28,8 +28,15 @@ export function getReferenceUrl(note: Note, jiraBaseUrl: string): string | null 
     return jiraBrowseUrl(jiraBaseUrl, note.reference_id) ?? null;
   }
 
+  if (note.type === "github_pr") {
+    // Notes added from the PR panel store the canonical "owner/repo#123" key, not a URL.
+    const key = note.reference_id.trim().match(/^([\w.-]+\/[\w.-]+)#(\d+)$/);
+    if (key) return `https://github.com/${key[1]}/pull/${key[2]}`;
+  }
+
   if (note.type === "github_pr" || note.type === "link") {
-    return note.reference_id;
+    // Anything that isn't absolute would resolve as an in-app route.
+    return /^https?:\/\//.test(note.reference_id) ? note.reference_id : null;
   }
 
   return null;

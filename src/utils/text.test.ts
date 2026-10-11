@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { noteMatchesQuery } from "./text";
+import { getReferenceUrl, noteMatchesQuery } from "./text";
 import { Note } from "../types";
 
 const note = (overrides: Partial<Note>): Note => ({
@@ -34,5 +34,25 @@ describe("noteMatchesQuery", () => {
 
   it("returns false when nothing matches", () => {
     expect(noteMatchesQuery(note({ title: "foo", content: "bar" }), "baz")).toBe(false);
+  });
+});
+
+describe("getReferenceUrl", () => {
+  it("turns a canonical PR key into a GitHub URL", () => {
+    expect(getReferenceUrl(note({ type: "github_pr", reference_id: "octo/repo#42" }), "")).toBe(
+      "https://github.com/octo/repo/pull/42",
+    );
+  });
+
+  it("passes absolute PR and link URLs through", () => {
+    const pr = "https://github.com/octo/repo/pull/42";
+    expect(getReferenceUrl(note({ type: "github_pr", reference_id: pr }), "")).toBe(pr);
+    expect(getReferenceUrl(note({ type: "link", reference_id: "https://x.dev/a" }), "")).toBe(
+      "https://x.dev/a",
+    );
+  });
+
+  it("returns null for non-absolute references so they never become in-app routes", () => {
+    expect(getReferenceUrl(note({ type: "link", reference_id: "x.dev/a" }), "")).toBeNull();
   });
 });
