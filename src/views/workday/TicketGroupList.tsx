@@ -5,6 +5,7 @@ import { VARIANT_FIELDS } from "../../components/PRTable";
 import { TicketGroupHeader } from "../../components/TicketGroupHeader";
 import { Badge } from "../../components/primitives/Badge";
 import { usePRNoteCounts } from "../../hooks/usePRNoteCounts";
+import { groupUpdatedAt } from "./buildWorkday";
 import type { TicketGroup } from "./types";
 
 export const MY_PR_FIELDS: PRCardFields = VARIANT_FIELDS["my-prs"];
@@ -20,21 +21,13 @@ export function OffSprintPill() {
   return <span className="workday-pill workday-pill--offsprint">Off-sprint</span>;
 }
 
-/** Most recent updated_at across PRs, or null for none. */
-function latestUpdate(prs: GitHubPR[]): string | null {
-  return prs.reduce<string | null>(
-    (latest, pr) =>
-      !latest || new Date(pr.updated_at) > new Date(latest) ? pr.updated_at : latest,
-    null,
-  );
-}
-
 interface TicketGroupListProps<G extends TicketGroup> {
   groups: G[];
   fields: PRCardFields;
   jiraBaseUrl: string;
-  /** Optional trailing label per PR row (e.g. "Review requested"). */
-  rowSuffix?: (pr: GitHubPR) => React.ReactNode;
+  /** Optional pills per PR row (e.g. "Review requested"), shown in the card's
+      top-right slot above the timestamps. */
+  rowBadges?: (pr: GitHubPR) => React.ReactNode;
   /** Optional extra pills on a group header (e.g. "Flagged"). */
   groupExtra?: (group: G) => React.ReactNode;
   /** Show "No PR yet" on PR-less groups; off where a PR-less ticket means something else. */
@@ -56,7 +49,7 @@ export function TicketGroupList<G extends TicketGroup>({
   groups,
   fields,
   jiraBaseUrl,
-  rowSuffix,
+  rowBadges,
   groupExtra,
   showNoPR = true,
   onOpen,
@@ -77,7 +70,7 @@ export function TicketGroupList<G extends TicketGroup>({
             summary={g.ticket?.summary}
             count={g.prs.length}
             onCopyKey={onCopyTicket}
-            updatedAt={g.ticket?.updated ?? latestUpdate(g.prs)}
+            updatedAt={groupUpdatedAt(g)}
           >
             {g.ticket?.offSprint && <OffSprintPill />}
             {g.ticket?.statusName && <Badge variant="info">{g.ticket.statusName}</Badge>}
@@ -87,20 +80,19 @@ export function TicketGroupList<G extends TicketGroup>({
             )}
           </TicketGroupHeader>
           {g.prs.map((pr) => (
-            <div key={pr.id} className="workday-pr-row">
-              <PRCard
-                pr={pr}
-                fields={fields}
-                jiraBaseUrl={jiraBaseUrl}
-                clustered
-                noteCount={noteCount(pr)}
-                onOpen={onOpen}
-                onCopyBranch={onCopyBranch}
-                onCopyLink={onCopyLink}
-                onCopyRef={onCopyRef}
-              />
-              {rowSuffix && <span className="workday-row-suffix">{rowSuffix(pr)}</span>}
-            </div>
+            <PRCard
+              key={pr.id}
+              pr={pr}
+              fields={fields}
+              jiraBaseUrl={jiraBaseUrl}
+              clustered
+              noteCount={noteCount(pr)}
+              badges={rowBadges?.(pr)}
+              onOpen={onOpen}
+              onCopyBranch={onCopyBranch}
+              onCopyLink={onCopyLink}
+              onCopyRef={onCopyRef}
+            />
           ))}
         </React.Fragment>
       ))}

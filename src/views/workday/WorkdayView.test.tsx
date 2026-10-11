@@ -333,7 +333,7 @@ describe("WorkdaySection", () => {
 describe("Reviewing state pills", () => {
   beforeEach(() => localStorage.clear());
 
-  it("marks requested reviews and already-reviewed PRs with distinct pills", () => {
+  it("distinguishes new requests, re-requests and reviewed PRs inside the card", () => {
     const other = (n: number, url: string): GitHubPR => ({
       ...prs[0],
       id: n,
@@ -343,14 +343,20 @@ describe("Reviewing state pills", () => {
       user: { login: "abu", avatar_url: "" },
     });
     renderView({
-      reviewRequests: [other(49, "https://github.com/o/r/pull/49")],
+      reviewRequests: [
+        other(49, "https://github.com/o/r/pull/49"),
+        { ...other(50, "https://github.com/o/r/pull/50"), viewer_engaged: true },
+      ],
       reviewingPRs: [other(55, "https://github.com/o/r/pull/55")],
     });
     const requested = screen.getByText("Review requested");
-    const reviewed = screen.getByText("Reviewed");
+    const rerequested = screen.getByText("Re-requested");
+    const reviewed = screen.getByText("You reviewed");
     expect(requested.className).toContain("badge-status--warning");
+    expect(rerequested.className).toContain("badge-status--warning");
     expect(reviewed.className).toContain("badge-status--info");
-    expect(requested.className).toContain("workday-review-pill");
+    // Sits in the card's top-right slot, above the timestamps — like other status pills.
+    expect(requested.closest(".pr-card-side-top")).toBeTruthy();
   });
 });
 

@@ -175,6 +175,39 @@ function BlockerReasons({ reasons }: { reasons: string[] }) {
   );
 }
 
+/**
+ * Where a Reviewing PR stands for the viewer. "Requested" means GitHub currently
+ * lists them as a pending reviewer; once they submit a review GitHub drops the
+ * request, so a PR they've engaged with but that nobody re-requested is "You reviewed".
+ */
+function ReviewStateBadge({ pr, requested }: { pr: GitHubPR; requested: boolean }) {
+  if (!requested) {
+    return (
+      <Badge
+        variant="info"
+        title="You reviewed or commented; your review isn't requested again yet"
+      >
+        You reviewed
+      </Badge>
+    );
+  }
+  if (pr.viewer_engaged) {
+    return (
+      <Badge
+        variant="warning"
+        title="You reviewed before and the author asked for your review again"
+      >
+        Re-requested
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="warning" title="Your review is requested and you haven't reviewed yet">
+      Review requested
+    </Badge>
+  );
+}
+
 function waitingMeta(item: WaitingItem): string {
   if (item.kind === "code-review") return `Code Review · ${item.reviewers.join(", ")}`;
   if (item.kind === "your-move") return "Approved — your move";
@@ -401,17 +434,12 @@ export function WorkdayView(props: WorkdayViewProps) {
               fields={REVIEW_PR_FIELDS}
               jiraBaseUrl={jiraBaseUrl}
               {...prActions}
-              rowSuffix={(pr) =>
-                filtered.reviewRequestedUrls.has(pr.html_url) ? (
-                  <Badge variant="warning" className="workday-review-pill">
-                    Review requested
-                  </Badge>
-                ) : (
-                  <Badge variant="info" className="workday-review-pill">
-                    Reviewed
-                  </Badge>
-                )
-              }
+              rowBadges={(pr) => (
+                <ReviewStateBadge
+                  pr={pr}
+                  requested={filtered.reviewRequestedUrls.has(pr.html_url)}
+                />
+              )}
             />
           </WorkdaySection>
 
@@ -432,7 +460,7 @@ export function WorkdayView(props: WorkdayViewProps) {
               groupExtra={(g) =>
                 g.items.some((i) => i.kind === "flagged") && <Badge variant="danger">Flagged</Badge>
               }
-              rowSuffix={(pr) => {
+              rowBadges={(pr) => {
                 const item = blockerByUrl.get(pr.html_url);
                 return item?.kind === "pr" && <BlockerReasons reasons={item.reasons} />;
               }}
@@ -462,7 +490,7 @@ export function WorkdayView(props: WorkdayViewProps) {
                     </span>
                   ))
               }
-              rowSuffix={(pr) => {
+              rowBadges={(pr) => {
                 const item = waitingByUrl.get(pr.html_url);
                 return item && <span className="workday-row-meta">{waitingMeta(item)}</span>;
               }}

@@ -95,13 +95,13 @@ describe("statusCategoryOf", () => {
 });
 
 describe("buildWorkday", () => {
-  it("groups my PRs by ticket, adds in-progress tickets without a PR, puts No ticket last", () => {
+  it("groups my PRs by ticket, adds in-progress tickets without a PR, newest first", () => {
     const s = buildWorkday(
       inputs({
         openPRs: [
-          pr(1, { title: "No key here" }),
-          pr(2, { title: "CCP-1 a" }),
-          pr(3, { title: "CCP-1 b" }),
+          pr(1, { title: "No key here", updated_at: "2026-10-11T00:00:00Z" }),
+          pr(2, { title: "CCP-1 a", updated_at: "2026-10-09T00:00:00Z" }),
+          pr(3, { title: "CCP-1 b", updated_at: "2026-10-08T00:00:00Z" }),
         ],
         assignedIssues: [
           issue("CCP-1", "indeterminate"),
@@ -119,11 +119,11 @@ describe("buildWorkday", () => {
       g.prs.map((p) => p.number),
     ]);
     expect(groups).toEqual([
+      [null, [1]],
       ["CCP-1", [2, 3]],
       ["CCP-2", []],
-      [null, [1]],
     ]);
-    expect(s.workingOn.items[0].ticket).toMatchObject({
+    expect(s.workingOn.items[1].ticket).toMatchObject({
       summary: "Summary CCP-1",
       statusName: "In Progress",
       offSprint: false,
@@ -195,17 +195,21 @@ describe("buildWorkday", () => {
     ]);
   });
 
-  it("dedupes reviewing by URL and never flags it", () => {
+  it("dedupes reviewing by URL, puts already-reviewed groups first, and never flags it", () => {
     const shared = pr(20, { title: "OTHER-1 x", user: { login: "bob", avatar_url: "" } });
     const s = buildWorkday(
       inputs({
         reviewRequests: [shared],
-        reviewingPRs: [shared, pr(21, { title: "OTHER-2 y" })],
+        reviewingPRs: [
+          shared,
+          pr(21, { title: "OTHER-2 y", updated_at: "2026-10-08T00:00:00Z" }),
+          pr(22, { title: "OTHER-3 z", updated_at: "2026-10-09T00:00:00Z" }),
+        ],
         extras: { sprint: { data: [], error: null } },
       }),
       NOW,
     );
-    expect(s.reviewing.items.flatMap((g) => g.prs.map((p) => p.number))).toEqual([20, 21]);
+    expect(s.reviewing.items.flatMap((g) => g.prs.map((p) => p.number))).toEqual([22, 21, 20]);
     expect(s.reviewing.items.every((g) => g.ticket === null || g.ticket.offSprint === false)).toBe(
       true,
     );
@@ -440,7 +444,7 @@ describe("groupItemsByTicket", () => {
     updated: null,
   });
 
-  it("buckets by ticket key in first-seen order, ticketless last", () => {
+  it("buckets by ticket key in first-seen order, ticketless items included", () => {
     const items = [
       { id: 1, ticket: null },
       { id: 2, ticket: t("A-1") },
@@ -449,9 +453,9 @@ describe("groupItemsByTicket", () => {
     ];
     const groups = groupItemsByTicket(items);
     expect(groups.map((g) => [g.ticket?.key ?? null, g.items.map((i) => i.id)])).toEqual([
+      [null, [1]],
       ["A-1", [2, 4]],
       ["B-2", [3]],
-      [null, [1]],
     ]);
   });
 });

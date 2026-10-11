@@ -27,6 +27,24 @@ const joinErrors = (parts: Part<unknown>[]) =>
     .filter(Boolean)
     .join("; ") || null;
 
+const time = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : 0);
+
+/** Copy of `items`, latest activity first (stable for ties). */
+function newestFirst<T>(items: T[], at: (item: T) => number): T[] {
+  return [...items].sort((a, b) => at(b) - at(a));
+}
+
+/** Latest activity in a ticket group: its newest PR or the ticket's own update, whichever is later. */
+export function groupUpdatedAt(g: TicketGroup): string | null {
+  const candidates = [g.ticket?.updated, ...g.prs.map((p) => p.updated_at)].filter(
+    (d): d is string => !!d,
+  );
+  return candidates.length > 0 ? newestFirst(candidates, time)[0] : null;
+}
+const groupTime = (g: TicketGroup) => time(groupUpdatedAt(g));
+const itemTime = (item: { pr?: GitHubPR; ticket: TicketRef | null }) =>
+  time(item.pr?.updated_at ?? item.ticket?.updated);
+
 /** Jira status category, derived from colour for issues cached before `key` was mapped. */
 export function statusCategoryOf(issue: JiraIssue): StatusCategoryKey {
   const cat = issue.status?.statusCategory;
@@ -87,18 +105,19 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
       .map((k) => k.toUpperCase()),
   );
 
-  // Working on: my PRs grouped by ticket, then in-progress tickets with no PR, then "No ticket".
+  // Working on: my PRs grouped by ticket, in-progress tickets with no PR, and "No ticket".
   const prGroups = groupByTicket(inp.openPRs);
-  const workingOn: TicketGroup[] = prGroups
+  const workingOnGroups: TicketGroup[] = prGroups
     .filter((g) => g.ticket !== null)
     .map((g) => ({ ticket: ref(g.ticket!), prs: g.prs }));
   for (const issue of assigned.values()) {
     if (statusCategoryOf(issue) === "indeterminate" && !prTicketKeys.has(issue.key.toUpperCase())) {
-      workingOn.push({ ticket: ref(issue.key), prs: [] });
+      workingOnGroups.push({ ticket: ref(issue.key), prs: [] });
     }
   }
   const noTicket = prGroups.filter((g) => g.ticket === null).flatMap((g) => g.prs);
-  if (noTicket.length > 0) workingOn.push({ ticket: null, prs: noTicket });
+  if (noTicket.length > 0) workingOnGroups.push({ ticket: null, prs: noTicket });
+  const workingOn = newestFirst(workingOnGroups, groupTime);
 
   // Reviewing: requested ∪ reviewing, deduped by URL; never off-sprint.
   const seen = new Set<string>();
@@ -107,10 +126,17 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
     seen.add(p.html_url);
     return true;
   });
-  const reviewing: TicketGroup[] = groupByTicket(reviewPRs).map((g) => ({
-    ticket: g.ticket ? ref(g.ticket, false) : null,
-    prs: g.prs,
-  }));
+  // Groups I've already reviewed come first, then ones with a pending request;
+  // each tier newest first.
+  const requestedUrls = new Set(inp.reviewRequests.map((p) => p.html_url));
+  const hasRequest = (g: TicketGroup) => g.prs.some((p) => requestedUrls.has(p.html_url));
+  const reviewing: TicketGroup[] = newestFirst(
+    groupByTicket(reviewPRs).map((g) => ({
+      ticket: g.ticket ? ref(g.ticket, false) : null,
+      prs: g.prs,
+    })),
+    groupTime,
+  ).sort((a, b) => Number(hasRequest(a)) - Number(hasRequest(b)));
 
   // Blockers and waiting.
   const blockers: BlockerItem[] = [];
@@ -207,16 +233,7 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
     if (!item.ticket.offSprint) notStartedSprint.push(item);
     else if (issue.updated && new Date(issue.updated).getTime() >= cutoff) notStartedOff.push(item);
   }
-  if (sprintData) {
-    const order = new Map(sprintData.map((t, idx) => [t.key.toUpperCase(), idx]));
-    notStartedSprint.sort(
-      (a, b) =>
-        (order.get(a.ticket.key.toUpperCase()) ?? 0) - (order.get(b.ticket.key.toUpperCase()) ?? 0),
-    );
-  }
-  notStartedOff.sort(
-    (a, b) => new Date(b.updated ?? 0).getTime() - new Date(a.updated ?? 0).getTime(),
-  );
+  const notStartedTime = (n: NotStartedItem) => time(n.updated);
 
   const offKeys = new Set<string>();
   const noteOff = (t: TicketRef | null) => t?.offSprint && offKeys.add(t.key.toUpperCase());
@@ -238,12 +255,12 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
     },
     workingOn: { items: workingOn, loading: false, error: null },
     reviewing: { items: reviewing, loading: false, error: null },
-    reviewRequestedUrls: new Set(inp.reviewRequests.map((p) => p.html_url)),
-    blockers: { items: blockers, loading: jiraLoading, error: jiraError },
-    waiting: { items: waiting, loading: false, error: null },
+    reviewRequestedUrls: requestedUrls,
+    blockers: { items: newestFirst(blockers, itemTime), loading: jiraLoading, error: jiraError },
+    waiting: { items: newestFirst(waiting, itemTime), loading: false, error: null },
     notStarted: {
-      items: notStartedSprint,
-      offSprintItems: notStartedOff,
+      items: newestFirst(notStartedSprint, notStartedTime),
+      offSprintItems: newestFirst(notStartedOff, notStartedTime),
       loading: jiraLoading,
       error: jiraError,
     },
@@ -251,25 +268,19 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
   };
 }
 
-/** Items bucketed by ticket in first-seen order; ticketless items go last under `null`. */
+/** Items bucketed by ticket in first-seen order; ticketless items share one `null` bucket. */
 export function groupItemsByTicket<T extends { ticket: TicketRef | null }>(
   items: T[],
 ): { ticket: TicketRef | null; items: T[] }[] {
   const byKey = new Map<string, { ticket: TicketRef | null; items: T[] }>();
-  const none: T[] = [];
   for (const item of items) {
-    if (!item.ticket) {
-      none.push(item);
-      continue;
-    }
-    const key = item.ticket.key.toUpperCase();
+    // "" can't collide with a real ticket key.
+    const key = item.ticket ? item.ticket.key.toUpperCase() : "";
     const group = byKey.get(key);
     if (group) group.items.push(item);
     else byKey.set(key, { ticket: item.ticket, items: [item] });
   }
-  const groups = [...byKey.values()];
-  if (none.length > 0) groups.push({ ticket: null, items: none });
-  return groups;
+  return [...byKey.values()];
 }
 
 /** Apply the header's sprint filter. "all" returns the same object. */

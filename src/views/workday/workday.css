@@ -184,29 +184,6 @@ button.workday-row-title:hover {
   padding: 7px var(--space-4);
 }
 
-.workday-pr-row {
-  display: flex;
-  align-items: center;
-}
-
-.workday-pr-row > .pr-card {
-  flex: 1;
-  min-width: 0;
-}
-
-.workday-row-suffix {
-  flex-shrink: 0;
-  padding-right: var(--space-4);
-  white-space: nowrap;
-}
-
-/* Fixed width so the review state lines up as a column down the section. */
-.workday-review-pill {
-  display: inline-block;
-  width: 8.5rem;
-  text-align: center;
-}
-
 .workday-pill {
   flex-shrink: 0;
   font-size: 0.6875rem;
