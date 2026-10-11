@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useRef, useState, ReactNode } from "react";
 import { JiraIssue } from "../types";
-import { fetchIssuesByKeys } from "../services/jira";
+import { fetchIssueDetail } from "../services/jira";
 import { JiraIssueDrawer } from "../components/JiraIssueDrawer";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 
@@ -23,16 +23,18 @@ export function JiraDrawerProvider({
 }) {
   const [issue, setIssue] = useState<JiraIssue | null>(null);
   const [loading, setLoading] = useState(false);
+  const [reloading, setReloading] = useState(false);
   // Only the latest click wins if several fetches overlap.
   const requestId = useRef(0);
 
   const openIssue = useCallback<OpenJiraIssue>((key) => {
     const id = ++requestId.current;
     setIssue(null);
+    setReloading(false);
     setLoading(true);
-    fetchIssuesByKeys([key])
-      .then((issues) => {
-        if (id === requestId.current && issues[0]) setIssue(issues[0]);
+    fetchIssueDetail(key)
+      .then((fetched) => {
+        if (id === requestId.current && fetched) setIssue(fetched);
       })
       .catch(() => {
         if (id === requestId.current) setIssue(null);
@@ -42,13 +44,39 @@ export function JiraDrawerProvider({
       });
   }, []);
 
-  const hide = useCallback(() => setIssue(null), []);
+  // Refetch in place: the drawer stays open on the cached issue until fresh data lands.
+  const reload = useCallback(() => {
+    if (!issue) return;
+    const id = ++requestId.current;
+    setReloading(true);
+    fetchIssueDetail(issue.key, { force: true })
+      .then((fetched) => {
+        if (id === requestId.current && fetched) setIssue(fetched);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (id === requestId.current) setReloading(false);
+      });
+  }, [issue]);
+
+  const hide = useCallback(() => {
+    requestId.current++;
+    setIssue(null);
+    setReloading(false);
+  }, []);
 
   return (
     <JiraDrawerContext.Provider value={openIssue}>
       {children}
       <LoadingOverlay show={loading} label="Loading…" />
-      <JiraIssueDrawer issue={issue} show={!!issue} onHide={hide} baseUrl={baseUrl} />
+      <JiraIssueDrawer
+        issue={issue}
+        show={!!issue}
+        onHide={hide}
+        baseUrl={baseUrl}
+        onReload={reload}
+        reloading={reloading}
+      />
     </JiraDrawerContext.Provider>
   );
 }

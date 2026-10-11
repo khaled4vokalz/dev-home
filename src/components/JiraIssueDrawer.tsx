@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Spinner from "react-bootstrap/Spinner";
-import { IconExternalLink, IconGitPullRequest } from "@tabler/icons-react";
+import { IconExternalLink, IconGitPullRequest, IconRefresh } from "@tabler/icons-react";
 import { JiraIssue } from "../types";
 import type { LinkedPR } from "../types/teams";
 import { useIssueDescription } from "../hooks/useIssueDescription";
@@ -20,6 +20,9 @@ interface JiraIssueDrawerProps {
   /** PRs linked to this issue, shown at the bottom of the drawer. */
   linkedPRs?: LinkedPR[];
   staleDays?: number;
+  /** Refetch the issue, bypassing the cache. Shows a reload button when set. */
+  onReload?: () => void;
+  reloading?: boolean;
 }
 
 export const JiraIssueDrawer: React.FC<JiraIssueDrawerProps> = ({
@@ -29,6 +32,8 @@ export const JiraIssueDrawer: React.FC<JiraIssueDrawerProps> = ({
   baseUrl,
   linkedPRs,
   staleDays,
+  onReload,
+  reloading,
 }) => {
   const url = issue ? jiraBrowseUrl(baseUrl, issue.key) : undefined;
 
@@ -79,12 +84,30 @@ export const JiraIssueDrawer: React.FC<JiraIssueDrawerProps> = ({
           )}
           <div className="jira-drawer-title">{issue ? `${issue.key}: ${issue.summary}` : ""}</div>
           {issue?.project.name && <div className="jira-drawer-subtitle">{issue.project.name}</div>}
-          {url && (
-            <a href={url} target="_blank" rel="noopener noreferrer" className="jira-drawer-link">
-              Open in Jira
-              <IconExternalLink size={13} stroke={1.5} />
-            </a>
-          )}
+          <div className="jira-drawer-actions">
+            {url && (
+              <a href={url} target="_blank" rel="noopener noreferrer" className="jira-drawer-link">
+                Open in Jira
+                <IconExternalLink size={13} stroke={1.5} />
+              </a>
+            )}
+            {onReload && (
+              <button
+                type="button"
+                className="jira-drawer-link jira-drawer-reload"
+                onClick={onReload}
+                disabled={reloading}
+                title="Reload from Jira"
+              >
+                {reloading ? (
+                  <Spinner animation="border" size="sm" style={{ width: 12, height: 12 }} />
+                ) : (
+                  <IconRefresh size={13} stroke={1.5} />
+                )}
+                Reload
+              </button>
+            )}
+          </div>
         </div>
       </Offcanvas.Header>
 

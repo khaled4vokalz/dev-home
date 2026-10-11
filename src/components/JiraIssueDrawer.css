@@ -48,6 +48,23 @@
   color: var(--color-accent-link-hover);
 }
 
+.jira-issue-drawer .jira-drawer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.jira-issue-drawer .jira-drawer-reload {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.jira-issue-drawer .jira-drawer-reload:disabled {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
 .jira-issue-drawer .jira-drawer-body {
   display: flex;
   flex-direction: column;

@@ -17,7 +17,7 @@ import { SegmentedTabs } from "../../components/SegmentedTabs";
 import { JiraIssueDrawer } from "../../components/JiraIssueDrawer";
 import { DescriptionModal } from "../../components/DescriptionModal";
 import { LoadingOverlay } from "../../components/LoadingOverlay";
-import { fetchIssuesByKeys } from "../../services/jira";
+import { fetchIssueDetail } from "../../services/jira";
 import { fetchPR } from "../../services/github";
 import { formatRelativeTime } from "../../utils/time";
 import type { JiraIssue, GitHubPR } from "../../types";
@@ -123,6 +123,7 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
   // gives immediate feedback before the drawer/modal can open.
   const [detailLoading, setDetailLoading] = useState(false);
   const [drawerStaleDays, setDrawerStaleDays] = useState<number | undefined>(undefined);
+  const [drawerReloading, setDrawerReloading] = useState(false);
 
   const openIssue = useCallback(
     (key: string) => {
@@ -133,15 +134,28 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
       setDrawerPRs(match?.linkedPRs ?? []);
       setDrawerStaleDays(match?.flags.stale ? match.daysSinceUpdate : undefined);
       setDetailLoading(true);
-      fetchIssuesByKeys([key])
-        .then((issues) => {
-          if (issues[0]) setDrawerIssue(issues[0]);
+      fetchIssueDetail(key)
+        .then((issue) => {
+          if (issue) setDrawerIssue(issue);
         })
         .catch(() => setDrawerIssue(null))
         .finally(() => setDetailLoading(false));
     },
     [dashboard?.issues],
   );
+
+  // Bypass the hour-long issue cache; the drawer keeps showing the old copy meanwhile.
+  const reloadIssue = useCallback(() => {
+    if (!drawerIssue) return;
+    const key = drawerIssue.key;
+    setDrawerReloading(true);
+    fetchIssueDetail(key, { force: true })
+      .then((issue) => {
+        if (issue) setDrawerIssue((cur) => (cur?.key === key ? issue : cur));
+      })
+      .catch(() => {})
+      .finally(() => setDrawerReloading(false));
+  }, [drawerIssue]);
 
   const openPR = useCallback((repoFullName: string, number: number) => {
     const [owner, repo] = repoFullName.split("/");
@@ -415,6 +429,8 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
         baseUrl={jiraBaseUrl}
         linkedPRs={drawerPRs}
         staleDays={drawerStaleDays}
+        onReload={reloadIssue}
+        reloading={drawerReloading}
       />
 
       <DescriptionModal
