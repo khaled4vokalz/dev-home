@@ -5,13 +5,14 @@ import { fetchIssueDescription } from "../services/jira";
 /**
  * Description for an open issue drawer/modal. List endpoints omit the (heavy)
  * description, so it's lazy-loaded on first open and cached session-wide by
- * fetchIssueDescription. Issues that already carry one are used as-is.
+ * fetchIssueDescription. Issues fetched with detail carry one (possibly empty)
+ * and are used as-is.
  */
 export function useIssueDescription(
   issue: JiraIssue | null,
   enabled = true,
 ): { description: string; loading: boolean } {
-  const key = enabled && issue && !issue.description ? issue.key : null;
+  const key = enabled && issue && issue.description === undefined ? issue.key : null;
   const [loaded, setLoaded] = useState<{ key: string; text: string } | null>(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function useIssueDescription(
   }, [key]);
 
   if (!issue) return { description: "", loading: false };
-  if (issue.description) return { description: issue.description, loading: false };
+  if (issue.description !== undefined) return { description: issue.description, loading: false };
   // Loading is derived from whether the result matches the current key, so a
   // cancelled request can never leave a stuck spinner.
   const ready = loaded?.key === issue.key;

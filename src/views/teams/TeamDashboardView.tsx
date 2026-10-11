@@ -124,6 +124,8 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
   const [detailLoading, setDetailLoading] = useState(false);
   const [drawerStaleDays, setDrawerStaleDays] = useState<number | undefined>(undefined);
   const [drawerReloading, setDrawerReloading] = useState(false);
+  // Issue key being fetched; the drawer opens on it right away with a spinner.
+  const [drawerLoadingKey, setDrawerLoadingKey] = useState<string | null>(null);
 
   const openIssue = useCallback(
     (key: string) => {
@@ -133,13 +135,13 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
       const match = dashboard?.issues.find((i) => i.key === key);
       setDrawerPRs(match?.linkedPRs ?? []);
       setDrawerStaleDays(match?.flags.stale ? match.daysSinceUpdate : undefined);
-      setDetailLoading(true);
+      setDrawerLoadingKey(key);
       fetchIssueDetail(key)
         .then((issue) => {
           if (issue) setDrawerIssue(issue);
         })
         .catch(() => setDrawerIssue(null))
-        .finally(() => setDetailLoading(false));
+        .finally(() => setDrawerLoadingKey((cur) => (cur === key ? null : cur)));
     },
     [dashboard?.issues],
   );
@@ -425,12 +427,16 @@ export function TeamDashboardView({ configured, jiraBaseUrl, initialTeamId, jira
       <JiraIssueDrawer
         issue={drawerIssue}
         show={!!drawerIssue}
-        onHide={() => setDrawerIssue(null)}
+        onHide={() => {
+          setDrawerIssue(null);
+          setDrawerLoadingKey(null);
+        }}
         baseUrl={jiraBaseUrl}
         linkedPRs={drawerPRs}
         staleDays={drawerStaleDays}
         onReload={reloadIssue}
         reloading={drawerReloading}
+        loadingKey={drawerLoadingKey}
       />
 
       <DescriptionModal

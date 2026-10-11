@@ -2,7 +2,6 @@ import React, { createContext, useCallback, useContext, useRef, useState, ReactN
 import { JiraIssue } from "../types";
 import { fetchIssueDetail } from "../services/jira";
 import { JiraIssueDrawer } from "../components/JiraIssueDrawer";
-import { LoadingOverlay } from "../components/LoadingOverlay";
 
 /** Opens the shared Jira issue drawer for a ticket key. */
 export type OpenJiraIssue = (key: string) => void;
@@ -22,7 +21,8 @@ export function JiraDrawerProvider({
   children: ReactNode;
 }) {
   const [issue, setIssue] = useState<JiraIssue | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Key being fetched; the drawer opens on it right away with a spinner.
+  const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
   // Only the latest click wins if several fetches overlap.
   const requestId = useRef(0);
@@ -31,7 +31,7 @@ export function JiraDrawerProvider({
     const id = ++requestId.current;
     setIssue(null);
     setReloading(false);
-    setLoading(true);
+    setLoadingKey(key);
     fetchIssueDetail(key)
       .then((fetched) => {
         if (id === requestId.current && fetched) setIssue(fetched);
@@ -40,7 +40,7 @@ export function JiraDrawerProvider({
         if (id === requestId.current) setIssue(null);
       })
       .finally(() => {
-        if (id === requestId.current) setLoading(false);
+        if (id === requestId.current) setLoadingKey(null);
       });
   }, []);
 
@@ -62,13 +62,13 @@ export function JiraDrawerProvider({
   const hide = useCallback(() => {
     requestId.current++;
     setIssue(null);
+    setLoadingKey(null);
     setReloading(false);
   }, []);
 
   return (
     <JiraDrawerContext.Provider value={openIssue}>
       {children}
-      <LoadingOverlay show={loading} label="Loading…" />
       <JiraIssueDrawer
         issue={issue}
         show={!!issue}
@@ -76,6 +76,7 @@ export function JiraDrawerProvider({
         baseUrl={baseUrl}
         onReload={reload}
         reloading={reloading}
+        loadingKey={loadingKey}
       />
     </JiraDrawerContext.Provider>
   );
