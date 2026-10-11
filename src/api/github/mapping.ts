@@ -1,3 +1,4 @@
+import type { ReviewState } from "../../types";
 import { computeChecksStatus, findOptionalFailures, latestContexts } from "./checks";
 
 /**
@@ -114,6 +115,46 @@ export function deriveYourTurn(node: any, viewer?: string): boolean {
 
   if (!latestLogin) return false;
   return latestLogin.toLowerCase() !== viewer.toLowerCase();
+}
+
+/** Review states that count as the viewer having reviewed (not PENDING / DISMISSED). */
+const SUBMITTED_REVIEW_STATES: ReadonlySet<string> = new Set([
+  "APPROVED",
+  "CHANGES_REQUESTED",
+  "COMMENTED",
+]);
+
+/**
+ * The viewer's latest submitted review on a PR, and whether the head commit is
+ * newer. PENDING (unsubmitted) and DISMISSED reviews are skipped, so a PR whose
+ * only viewer reviews were dismissed reads as unreviewed (state null). The
+ * latest review wins regardless of state, so a comment after an approval reads
+ * COMMENTED. `new_commits_since_review` compares the head commit's
+ * committedDate (needs PR_STATUS_FIELDS) and is false when there's no review.
+ */
+export function deriveViewerReview(
+  node: any,
+  viewer: string,
+): {
+  viewer_review_state: ReviewState | null;
+  viewer_reviewed_at: string | null;
+  new_commits_since_review: boolean;
+} {
+  const me = viewer.toLowerCase();
+  let latest: { at: number; state: ReviewState; submittedAt: string } | null = null;
+  for (const r of node.reviews?.nodes || []) {
+    if (!me || (r.author?.login || "").toLowerCase() !== me) continue;
+    if (!SUBMITTED_REVIEW_STATES.has(r.state)) continue;
+    const at = new Date(r.submittedAt).getTime();
+    if (Number.isNaN(at)) continue;
+    if (!latest || at >= latest.at) latest = { at, state: r.state, submittedAt: r.submittedAt };
+  }
+  const committedAt = new Date(node.commits?.nodes?.[0]?.commit?.committedDate).getTime();
+  return {
+    viewer_review_state: latest?.state ?? null,
+    viewer_reviewed_at: latest?.submittedAt ?? null,
+    new_commits_since_review: !!latest && !Number.isNaN(committedAt) && committedAt > latest.at,
+  };
 }
 
 /** Count review threads still open (isResolved === false). */

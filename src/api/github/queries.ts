@@ -43,7 +43,8 @@ const PR_BASE_FIELDS = `databaseId
 /**
  * Merge-readiness fields for open-PR queries (conflicts, queue, review, CI).
  * Deliberately omits `mergeStateStatus`: GitHub evaluates it per PR on read,
- * adding ~2s to a search, and nothing renders it.
+ * adding ~2s to a search, and nothing renders it. The head commit's
+ * `committedDate` lets deriveViewerReview flag new commits since a review.
  */
 const PR_STATUS_FIELDS = `mergeable
   mergeQueueEntry { id }
@@ -51,6 +52,7 @@ const PR_STATUS_FIELDS = `mergeable
   commits(last: 1) {
     nodes {
       commit {
+        committedDate
         ${PR_CHECKS_ROLLUP}
       }
     }
@@ -60,7 +62,8 @@ const PR_STATUS_FIELDS = `mergeable
  * One review-plate search (review requested, reviewed by, or commented on).
  * getReviews runs the three as parallel requests rather than aliases of one
  * query: GitHub resolves aliased searches one after another, so a single
- * request costs the sum of the three instead of the slowest.
+ * request costs the sum of the three instead of the slowest. Reviews carry
+ * submittedAt + author so deriveViewerReview can find the viewer's latest one.
  */
 export const REVIEW_SEARCH_QUERY = `
   query ReviewPRs($query: String!, $first: Int!) {
@@ -69,6 +72,13 @@ export const REVIEW_SEARCH_QUERY = `
         ... on PullRequest {
           ${PR_BASE_FIELDS}
           ${PR_STATUS_FIELDS}
+          reviews(last: 20) {
+            nodes {
+              state
+              submittedAt
+              author { login }
+            }
+          }
         }
       }
     }

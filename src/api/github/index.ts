@@ -2,7 +2,14 @@ import type { ReviewedPR, ReviewState } from "../../types";
 import { requireSettings } from "../http/credentials";
 import { ApiError, toApiError } from "../http/errors";
 import { githubGraphql, githubRest } from "../http/github";
-import { extractOwnPRComments, hoursAgo, isBot, mapGraphQLPr, monthsAgo } from "./mapping";
+import {
+  deriveViewerReview,
+  extractOwnPRComments,
+  hoursAgo,
+  isBot,
+  mapGraphQLPr,
+  monthsAgo,
+} from "./mapping";
 import {
   MAX_MENTION_THREADS,
   fetchAllNotifications,
@@ -66,6 +73,8 @@ function prNodeKey(n: any): string {
  *  - `reviewing`: open PRs (not authored by the user) that the user has reviewed
  *    or commented on — i.e. reviews in progress. GitHub drops you from
  *    `review-requested:` once you submit a review, so this needs its own search.
+ * PRs in both lists carry the viewer's latest review (`viewer_review_state`,
+ * `viewer_reviewed_at`, `new_commits_since_review`; see deriveViewerReview).
  */
 export async function getReviews(
   signal?: AbortSignal,
@@ -95,9 +104,16 @@ export async function getReviews(
     if (!engagedNodes.has(prNodeKey(n))) engagedNodes.set(prNodeKey(n), n);
   }
 
+  // Not passed as mapOpenPrsWithChecks' viewer: that drives `your_turn`, which
+  // is only meaningful for the viewer's own PRs.
+  const withViewerReview = async (nodes: any[]) =>
+    (await mapOpenPrsWithChecks(nodes)).map((pr: any, i: number) => ({
+      ...pr,
+      ...deriveViewerReview(nodes[i], user),
+    }));
   const [reviews, reviewing] = await Promise.all([
-    mapOpenPrsWithChecks(requested),
-    mapOpenPrsWithChecks([...engagedNodes.values()]),
+    withViewerReview(requested),
+    withViewerReview([...engagedNodes.values()]),
   ]);
 
   return {

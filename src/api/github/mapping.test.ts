@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveReviewStatus, mapGraphQLPr } from "./mapping";
+import { deriveReviewStatus, deriveViewerReview, mapGraphQLPr } from "./mapping";
 
 const r = (login: string, state: string) => ({ state, author: { login } });
 
@@ -50,5 +50,71 @@ describe("mapGraphQLPr requested_reviewers", () => {
     };
     expect(mapGraphQLPr(node).requested_reviewers).toEqual(["guru", "cmp-team"]);
     expect(mapGraphQLPr({}).requested_reviewers).toBeUndefined();
+  });
+});
+
+describe("deriveViewerReview", () => {
+  const review = (login: string, state: string, submittedAt: string) => ({
+    state,
+    submittedAt,
+    author: { login },
+  });
+  const pr = (reviews: any[], committedDate = "2026-10-01T00:00:00Z") => ({
+    reviews: { nodes: reviews },
+    commits: { nodes: [{ commit: { committedDate } }] },
+  });
+
+  it("is empty when the viewer hasn't reviewed", () => {
+    expect(
+      deriveViewerReview(pr([review("bob", "APPROVED", "2026-10-02T00:00:00Z")]), "me"),
+    ).toEqual({
+      viewer_review_state: null,
+      viewer_reviewed_at: null,
+      new_commits_since_review: false,
+    });
+    expect(deriveViewerReview({}, "me").viewer_review_state).toBeNull();
+  });
+
+  it("ignores dismissed and pending reviews", () => {
+    const node = pr([
+      review("me", "DISMISSED", "2026-09-01T00:00:00Z"),
+      review("me", "PENDING", "2026-09-02T00:00:00Z"),
+    ]);
+    expect(deriveViewerReview(node, "me")).toEqual({
+      viewer_review_state: null,
+      viewer_reviewed_at: null,
+      new_commits_since_review: false,
+    });
+  });
+
+  it("reports a comment-only review", () => {
+    const node = pr([review("Me", "COMMENTED", "2026-10-02T00:00:00Z")]);
+    expect(deriveViewerReview(node, "me")).toMatchObject({
+      viewer_review_state: "COMMENTED",
+      viewer_reviewed_at: "2026-10-02T00:00:00Z",
+    });
+  });
+
+  it("uses the viewer's latest review, skipping a later dismissal", () => {
+    const node = pr([
+      review("me", "CHANGES_REQUESTED", "2026-09-20T00:00:00Z"),
+      review("me", "APPROVED", "2026-09-25T00:00:00Z"),
+      review("bob", "COMMENTED", "2026-09-28T00:00:00Z"),
+      review("me", "DISMISSED", "2026-09-29T00:00:00Z"),
+    ]);
+    expect(deriveViewerReview(node, "me")).toMatchObject({
+      viewer_review_state: "APPROVED",
+      viewer_reviewed_at: "2026-09-25T00:00:00Z",
+    });
+  });
+
+  it("flags commits newer than the viewer's review", () => {
+    const reviews = [review("me", "APPROVED", "2026-10-02T00:00:00Z")];
+    expect(
+      deriveViewerReview(pr(reviews, "2026-10-03T00:00:00Z"), "me").new_commits_since_review,
+    ).toBe(true);
+    expect(
+      deriveViewerReview(pr(reviews, "2026-10-01T00:00:00Z"), "me").new_commits_since_review,
+    ).toBe(false);
   });
 });

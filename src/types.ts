@@ -162,6 +162,15 @@ export interface GitHubPR {
   labels?: GitHubLabel[];
   /** Review requests only: the viewer has already reviewed or commented on this PR. */
   viewer_engaged?: boolean;
+  /**
+   * Review plate only: the viewer's latest submitted review. PENDING and
+   * DISMISSED reviews don't count; null when no review counts.
+   */
+  viewer_review_state?: ReviewState | null;
+  /** Review plate only: when `viewer_review_state`'s review was submitted. */
+  viewer_reviewed_at?: string | null;
+  /** Review plate only: the head commit is newer than `viewer_reviewed_at` (false without a review). */
+  new_commits_since_review?: boolean;
   /** Pending review requests (user logins / team names). Undefined when the query didn't fetch them. */
   requested_reviewers?: string[];
 }
