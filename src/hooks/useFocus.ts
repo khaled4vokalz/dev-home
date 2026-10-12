@@ -94,14 +94,22 @@ export function useFocus(args: UseFocusArgs) {
   const itemsWithState = useMemo<FocusItem[]>(() => {
     return baseItems.map((i) => {
       const s = stateByItem[i.id];
-      if (!s) return i;
+      // Mention groups: dismissing hides the group until a newer mention arrives.
+      // Without group state, mentions all dismissed one by one (before grouping)
+      // keep it hidden.
+      const isDismissed = i.mentions
+        ? s
+          ? s.dismissedAt != null && s.dismissedAt >= i.updatedAt
+          : i.mentions.every((m) => stateByItem[m.id]?.dismissedAt != null)
+        : s?.dismissedAt != null;
+      if (!s && !isDismissed) return i;
       return {
         ...i,
         signals: {
           ...i.signals,
-          isPinned: s.pinnedAt != null,
-          snoozedUntil: s.snoozedUntil ?? undefined,
-          isDismissed: s.dismissedAt != null,
+          isPinned: s?.pinnedAt != null,
+          snoozedUntil: s?.snoozedUntil ?? undefined,
+          isDismissed,
         },
       };
     });
@@ -177,7 +185,7 @@ export function useFocus(args: UseFocusArgs) {
     [optimisticPatch],
   );
 
-  const dismiss = useCallback(
+  const dismissOne = useCallback(
     async (itemId: string, dismissed: boolean) => {
       optimisticPatch(itemId, { dismissedAt: dismissed ? Date.now() : null });
       try {
@@ -189,6 +197,20 @@ export function useFocus(args: UseFocusArgs) {
       }
     },
     [optimisticPatch],
+  );
+
+  // Restoring a mention group also clears its mentions' own (pre-grouping)
+  // dismissals, which would otherwise keep it hidden.
+  const dismiss = useCallback(
+    async (itemId: string, dismissed: boolean) => {
+      const legacy = dismissed
+        ? []
+        : (baseItems.find((i) => i.id === itemId)?.mentions ?? [])
+            .map((m) => m.id)
+            .filter((id) => stateByItem[id]?.dismissedAt != null);
+      await Promise.all([itemId, ...legacy].map((id) => dismissOne(id, dismissed)));
+    },
+    [dismissOne, baseItems, stateByItem],
   );
 
   return {

@@ -5,12 +5,23 @@ import { parseTimestamp } from "../utils/time";
 
 export type FocusKind = "pr-mine" | "pr-review" | "jira" | "mention" | "note";
 
+/** One comment inside a grouped mention row. */
+export interface FocusMention {
+  id: string;
+  who: string;
+  snippet: string;
+  url?: string;
+  at: number;
+}
+
 export interface FocusItem {
   id: string;
   kind: FocusKind;
   title: string;
   url?: string;
   updatedAt: number;
+  /** Mention rows: every mention on the same PR / ticket, newest first. */
+  mentions?: FocusMention[];
   signals: {
     ageDays: number;
     jiraPriority?: "Highest" | "High" | "Medium" | "Low" | "Lowest";
@@ -72,34 +83,83 @@ function jiraItem(j: JiraIssue, now: number, jiraBaseUrl?: string): FocusItem {
   };
 }
 
-function jiraMentionItem(c: JiraComment, now: number, jiraBaseUrl?: string): FocusItem {
+/** One row per PR / ticket: its mentions newest first, ranked by the newest one. */
+function mentionGroupItem(
+  id: string,
+  title: string,
+  url: string | undefined,
+  mentions: FocusMention[],
+  now: number,
+): FocusItem {
+  const sorted = [...mentions].sort((a, b) => b.at - a.at);
+  const newest = sorted[0];
   return {
-    id: `mention:jira:${c.id}`,
+    id,
     kind: "mention",
-    title: `${c.issueKey}: ${c.body.text.slice(0, 80)}`,
-    url: jiraBrowseUrl(jiraBaseUrl, c.issueKey),
-    updatedAt: parseTimestamp(c.updated).getTime(),
+    title,
+    url: sorted.length === 1 ? (newest.url ?? url) : url,
+    updatedAt: newest.at,
+    mentions: sorted,
     signals: {
-      ageDays: ageDays(c.updated, now),
+      ageDays: Math.max(0, (now - newest.at) / MS_PER_DAY),
       isMention: true,
       isPinned: false,
     },
   };
 }
 
-function ghMentionItem(c: GitHubComment, now: number): FocusItem {
-  return {
-    id: `mention:gh:${c.id}`,
-    kind: "mention",
-    title: c.context_title || c.body.slice(0, 80),
-    url: c.html_url,
-    updatedAt: parseTimestamp(c.updated_at).getTime(),
-    signals: {
-      ageDays: ageDays(c.updated_at, now),
-      isMention: true,
-      isPinned: false,
-    },
-  };
+/** Group values by key, keeping first-seen key order. */
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const group = groups.get(k);
+    if (group) group.push(item);
+    else groups.set(k, [item]);
+  }
+  return groups;
+}
+
+function jiraMentionItems(comments: JiraComment[], now: number, jiraBaseUrl?: string): FocusItem[] {
+  return [...groupBy(comments, (c) => c.issueKey)].map(([key, group]) =>
+    mentionGroupItem(
+      `mention:jira:${key}`,
+      group[0].issueSummary ? `${key}: ${group[0].issueSummary}` : key,
+      jiraBrowseUrl(jiraBaseUrl, key),
+      group.map((c) => ({
+        id: `mention:jira:${c.id}`,
+        who: c.author.displayName,
+        snippet: c.body.text.slice(0, 160),
+        url: jiraBrowseUrl(jiraBaseUrl, key),
+        at: parseTimestamp(c.updated).getTime(),
+      })),
+      now,
+    ),
+  );
+}
+
+/** PR the comment belongs to, or the comment itself when it has none. */
+const ghMentionKey = (c: GitHubComment) =>
+  c.pr_number ? `${c.repo_full_name}#${c.pr_number}` : `comment:${c.id}`;
+
+function ghMentionItems(comments: GitHubComment[], now: number): FocusItem[] {
+  return [...groupBy(comments, ghMentionKey)].map(([key, group]) =>
+    mentionGroupItem(
+      `mention:gh:${key}`,
+      group[0].context_title || group[0].body.slice(0, 80),
+      group[0].pr_number
+        ? `https://github.com/${group[0].repo_full_name}/pull/${group[0].pr_number}`
+        : group[0].html_url,
+      group.map((c) => ({
+        id: `mention:gh:${c.id}`,
+        who: c.user.login,
+        snippet: c.body.slice(0, 160),
+        url: c.html_url,
+        at: parseTimestamp(c.updated_at).getTime(),
+      })),
+      now,
+    ),
+  );
 }
 
 function noteItem(n: Note, now: number, jiraBaseUrl?: string): FocusItem {
@@ -121,8 +181,8 @@ export function mergeSources(input: MergeInput, now: number = Date.now()): Focus
     ...input.openPRs.map((p) => prItem(p, "pr-mine", now)),
     ...input.reviewRequests.map((p) => prItem(p, "pr-review", now)),
     ...input.jiraIssues.map((j) => jiraItem(j, now, input.jiraBaseUrl)),
-    ...input.jiraComments.map((c) => jiraMentionItem(c, now, input.jiraBaseUrl)),
-    ...input.githubMentions.map((c) => ghMentionItem(c, now)),
+    ...jiraMentionItems(input.jiraComments, now, input.jiraBaseUrl),
+    ...ghMentionItems(input.githubMentions, now),
     ...input.notes.map((n) => noteItem(n, now, input.jiraBaseUrl)),
   ];
 }
