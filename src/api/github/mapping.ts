@@ -230,6 +230,11 @@ export function mapGraphQLPr(
           .map((r: any) => r?.requestedReviewer?.login ?? r?.requestedReviewer?.name)
           .filter((x: unknown): x is string => typeof x === "string" && x.length > 0)
       : undefined,
+    assignees: node.assignees
+      ? (node.assignees.nodes || [])
+          .map((a: any) => a?.login)
+          .filter((x: unknown): x is string => typeof x === "string" && x.length > 0)
+      : undefined,
   };
 }
 

@@ -78,6 +78,28 @@ describe("useDashboard enrichment", () => {
   });
 });
 
+describe("useDashboard review plate", () => {
+  it("hides reviews assigned to someone else but still dedupes their notifications", async () => {
+    const assigned = { ...pr(4, "DD-4 theirs"), assigned_to_other: true };
+    vi.mocked(fetchReviewRequests).mockResolvedValue({
+      reviews: [pr(3, "CC-3 review"), assigned],
+      reviewing: [{ ...pr(5, "EE-5 reviewing"), assigned_to_other: true }],
+    });
+    const notification = (n: number) =>
+      ({ id: n, reason: "review_requested", repo_full_name: "o/r", pr_number: n }) as any;
+    vi.mocked(fetchMentions).mockResolvedValue([notification(3), notification(4), notification(9)]);
+
+    const { result } = renderHook(() => useDashboard(true));
+    act(() => result.current.ensure(["reviewRequests", "githubMentions"]));
+    await waitFor(() => expect(result.current.loadedSources.has("reviewRequests")).toBe(true));
+    await waitFor(() => expect(result.current.loadedSources.has("githubMentions")).toBe(true));
+
+    expect(result.current.reviewRequests.map((p) => p.number)).toEqual([3]);
+    expect(result.current.reviewingPRs).toEqual([]);
+    await waitFor(() => expect(result.current.githubMentions.map((m) => m.id)).toEqual([9]));
+  });
+});
+
 describe("useDashboard lifecycle", () => {
   it("reports loaded sources only after a real fetch", async () => {
     const { result } = renderHook(() => useDashboard(true));

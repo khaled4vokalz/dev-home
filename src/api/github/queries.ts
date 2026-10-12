@@ -79,6 +79,9 @@ export const REVIEW_SEARCH_QUERY = `
               author { login }
             }
           }
+          assignees(first: 10) {
+            nodes { login }
+          }
         }
       }
     }

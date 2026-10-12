@@ -161,6 +161,10 @@ export function useDashboard(active: boolean): UseDashboardReturn {
   // can re-run as review requests arrive.
   const notificationMentionsRef = useRef<GitHubComment[] | null>(null);
 
+  // Review-plate PRs assigned to someone else (repo#number). Hidden from every
+  // view, but their review_requested notifications are still deduped.
+  const otherAssignedReviewsRef = useRef<Set<string>>(new Set());
+
   // Per-source error strings, aggregated into the `error` output. A source's
   // entry is cleared on its next success so stale failures don't linger.
   const errorsRef = useRef<Map<DataSource, string>>(new Map());
@@ -262,7 +266,7 @@ export function useDashboard(active: boolean): UseDashboardReturn {
 
     const reviews = dataRef.current.reviewRequests;
     const merged = notificationMentionsRef.current;
-    const reviewPRKeys = new Set(reviews.map(prNoteKey));
+    const reviewPRKeys = new Set([...reviews.map(prNoteKey), ...otherAssignedReviewsRef.current]);
     const seen = new Set<number | string>();
     const filtered = merged.filter((m) => {
       if (
@@ -347,8 +351,15 @@ export function useDashboard(active: boolean): UseDashboardReturn {
   fetchers.current.reviewRequests = async (signal) => {
     setReviewRequestsLoading(true);
     try {
-      const { reviews, reviewing } = await fetchReviewRequests(signal);
+      const fetched = await fetchReviewRequests(signal);
       if (signal.aborted) return;
+      // A review is only on my plate when the PR is assigned to me or to no one.
+      const mine = (pr: GitHubPR) => !pr.assigned_to_other;
+      otherAssignedReviewsRef.current = new Set(
+        [...fetched.reviews, ...fetched.reviewing].filter((pr) => !mine(pr)).map(prNoteKey),
+      );
+      const reviews = fetched.reviews.filter(mine);
+      const reviewing = fetched.reviewing.filter(mine);
       setReviewRequests(reviews);
       setReviewingPRs(reviewing);
       dataRef.current.reviewRequests = reviews;

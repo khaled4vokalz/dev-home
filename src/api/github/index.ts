@@ -58,6 +58,19 @@ export async function getPrs(signal?: AbortSignal): Promise<{ prs: any[] }> {
   return { prs };
 }
 
+/**
+ * Assigned to someone other than `user`. The author is ignored, since many
+ * people assign their own PRs; an author-only assignment counts as unassigned.
+ */
+function assignedToOther(pr: any, user: string): boolean {
+  const me = user.toLowerCase();
+  const author = (pr.user?.login || "").toLowerCase();
+  const others = (pr.assignees || [])
+    .map((a: string) => a.toLowerCase())
+    .filter((a: string) => a !== author);
+  return others.length > 0 && !others.includes(me);
+}
+
 /** Key a PR search node by repo + number, for cross-search set membership. */
 function prNodeKey(n: any): string {
   return `${n.repository?.nameWithOwner || ""}#${n.number}`;
@@ -110,6 +123,7 @@ export async function getReviews(
     (await mapOpenPrsWithChecks(nodes)).map((pr: any, i: number) => ({
       ...pr,
       ...deriveViewerReview(nodes[i], user),
+      assigned_to_other: assignedToOther(pr, user),
     }));
   const [reviews, reviewing] = await Promise.all([
     withViewerReview(requested),

@@ -173,6 +173,10 @@ export interface GitHubPR {
   new_commits_since_review?: boolean;
   /** Pending review requests (user logins / team names). Undefined when the query didn't fetch them. */
   requested_reviewers?: string[];
+  /** Assignee logins. Undefined when the query didn't fetch them. */
+  assignees?: string[];
+  /** Review plate only: assigned to someone other than the viewer (the author doesn't count). */
+  assigned_to_other?: boolean;
 }
 
 /** A review the viewer submitted. */

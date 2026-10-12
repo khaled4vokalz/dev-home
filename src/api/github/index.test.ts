@@ -178,6 +178,37 @@ describe("getReviews", () => {
     ]);
     expect(reviewing.map((pr) => pr.number).sort()).toEqual([1, 3]);
   });
+
+  it("flags PRs assigned to someone other than the viewer, ignoring the author", async () => {
+    const assigned = (n: number, logins: string[]) => ({
+      ...prNode(n),
+      assignees: { nodes: logins.map((login) => ({ login })) },
+    });
+    const requested = [
+      assigned(1, []),
+      assigned(2, ["TestUser"]),
+      assigned(3, ["other"]),
+      assigned(4, ["someone"]),
+      assigned(5, ["someone", "other"]),
+      assigned(6, ["other", "testuser"]),
+    ];
+    adapter.mockImplementation(async (config: any) => {
+      if (!String(config.url).endsWith("/graphql")) throw notFound(config);
+      const { variables } = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+      const nodes = String(variables.query).startsWith("review-requested") ? requested : [];
+      return ok(config, { data: { search: { nodes } } });
+    });
+
+    const { reviews } = await getReviews();
+    expect(reviews.map((pr) => [pr.number, pr.assigned_to_other])).toEqual([
+      [1, false],
+      [2, false],
+      [3, true],
+      [4, false],
+      [5, true],
+      [6, false],
+    ]);
+  });
 });
 
 describe("unconfigured settings", () => {
