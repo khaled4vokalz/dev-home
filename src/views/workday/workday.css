@@ -9,12 +9,19 @@
   --workday-row-cols: var(--workday-key-col) 16px minmax(0, 1fr) auto;
 }
 
+/* Baseline, not centre: the 20px title would otherwise sit ~3px below the
+   13px pill, tab and button labels beside it. */
 .workday-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-bottom: var(--space-1);
+}
+
+/* Centre button icons on the label instead of resting on its baseline. */
+.workday-header .btn svg {
+  vertical-align: -0.15em;
 }
 
 .workday-header h5 {
@@ -200,6 +207,12 @@
 .workday-pill--offsprint {
   border: 1px dashed var(--color-status-warning, #d29922);
   color: var(--color-status-warning, #d29922);
+}
+
+/* A ticket header's pointer to its PRs in another Needs-you tier. */
+.workday-pill--also {
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
 }
 
 .workday-more {

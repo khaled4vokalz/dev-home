@@ -191,6 +191,29 @@ describe("WorkdayView modes", () => {
     expect(header.querySelectorAll(".workday-pr-dots i")).toHaveLength(2);
   });
 
+  it("points a ticket header at its PRs in other Needs you tiers", () => {
+    renderView({
+      openPRs: [{ ...prs[0], requested_reviewers: [] }],
+      reviewRequests: [
+        {
+          ...prs[0],
+          id: 2,
+          number: 3311,
+          title: "WMU-402 api",
+          html_url: "https://github.com/o/r/pull/3311",
+          user: { login: "abu", avatar_url: "" },
+        },
+      ],
+      allIssues: [
+        { key: "WMU-402", summary: "Delete assets", status: { name: "In Progress" } } as JiraIssue,
+      ],
+    });
+    const section = sectionOf("Needs you");
+    expect(within(section).getAllByText("WMU-402")).toHaveLength(2);
+    expect(within(section).getByText("+1 in Unblock others")).toBeTruthy();
+    expect(within(section).getByText("+1 in Unblock yourself")).toBeTruthy();
+  });
+
   it("shows a ticket's PRs under it in Working on by default; Hide PRs is remembered", () => {
     const issues = [
       { key: "WMU-402", summary: "Delete assets", status: { name: "In Progress" } } as JiraIssue,

@@ -34,6 +34,36 @@ const TIER_TONE: Record<NeedsTier, StateBadge["tone"]> = {
   ship: "success",
 };
 
+/**
+ * Ticket key → PR count per tier. A ticket whose PRs need different actions
+ * shows under each tier, so its header points at the others.
+ */
+function tierCountsByTicket(items: NeedsItem[]): Map<string, Map<NeedsTier, number>> {
+  const out = new Map<string, Map<NeedsTier, number>>();
+  for (const { ticketKey, tier } of items) {
+    if (!ticketKey) continue;
+    const counts = out.get(ticketKey) ?? new Map<NeedsTier, number>();
+    counts.set(tier, (counts.get(tier) ?? 0) + 1);
+    out.set(ticketKey, counts);
+  }
+  return out;
+}
+
+/** "+1 in Unblock others" pills for a ticket's PRs in other tiers. */
+function AlsoInPills({ counts, tier }: { counts?: Map<NeedsTier, number>; tier: NeedsTier }) {
+  const others = NEEDS_TIER_ORDER.filter((t) => t !== tier && counts?.get(t));
+  if (others.length === 0) return null;
+  return (
+    <>
+      {others.map((t) => (
+        <span key={t} className="workday-pill workday-pill--also">
+          +{counts!.get(t)} in {TIER_LABEL[t]}
+        </span>
+      ))}
+    </>
+  );
+}
+
 interface NeedsYouStripProps {
   items: NeedsItem[];
   loading: boolean;
@@ -65,6 +95,7 @@ export function NeedsYouStrip({
   onOpen,
 }: NeedsYouStripProps) {
   const empty = items.length === 0;
+  const tierCounts = tierCountsByTicket(items);
   return (
     <WorkdaySection
       title="Needs you"
@@ -99,6 +130,7 @@ export function NeedsYouStrip({
                   ticketKey={key}
                   jiraBaseUrl={jiraBaseUrl}
                   title={ticketTitles.get(key) ?? ""}
+                  extra={<AlsoInPills counts={tierCounts.get(key)} tier={tier} />}
                   meta={
                     <CountDots
                       label={countLabel(group.length, "PR")}
