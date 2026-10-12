@@ -114,7 +114,7 @@ describe("WorkdayView modes", () => {
     for (const title of ["Needs you", "Mentions", "Working on", "Waiting on others"]) {
       expect(screen.getByText(title)).toBeTruthy();
     }
-    expect(screen.queryByText("In progress")).toBeNull();
+    expect(screen.queryByText("In Progress")).toBeNull();
     expect(screen.queryByRole("button", { name: "Copy standup" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Off-sprint · / })).toBeNull();
     expect(screen.queryByRole("button", { name: /Collapse all/ })).toBeNull();
@@ -123,14 +123,14 @@ describe("WorkdayView modes", () => {
   it("switches mode from the toggle and remembers it", () => {
     renderView();
     fireEvent.click(screen.getByRole("button", { name: /Standup/ }));
-    expect(screen.getByText("In progress")).toBeTruthy();
+    expect(screen.getByText("In Progress")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy standup" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Off-sprint · 1/ })).toBeTruthy();
     expect(localStorage.getItem("workday.mode")).toBe("standup");
     cleanup();
 
     renderView();
-    expect(screen.getByText("In progress")).toBeTruthy();
+    expect(screen.getByText("In Progress")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Focus/ }));
     expect(screen.getByText("Needs you")).toBeTruthy();
     expect(localStorage.getItem("workday.mode")).toBe("focus");
@@ -139,12 +139,12 @@ describe("WorkdayView modes", () => {
   it("switches with F / S, but not while typing in the notes", () => {
     renderView();
     fireEvent.keyDown(window, { key: "s" });
-    expect(screen.getByText("In progress")).toBeTruthy();
+    expect(screen.getByText("In Progress")).toBeTruthy();
     const box = screen.getByPlaceholderText(/Anything to raise at standup/);
     fireEvent.keyDown(box, { key: "f" });
-    expect(screen.getByText("In progress")).toBeTruthy();
+    expect(screen.getByText("In Progress")).toBeTruthy();
     fireEvent.keyDown(window, { key: "f", metaKey: true });
-    expect(screen.getByText("In progress")).toBeTruthy();
+    expect(screen.getByText("In Progress")).toBeTruthy();
     fireEvent.keyDown(window, { key: "F" });
     expect(screen.getByText("Needs you")).toBeTruthy();
   });
@@ -164,6 +164,50 @@ describe("WorkdayView modes", () => {
     expect(verb.className).toContain("workday-tone--warning");
     fireEvent.click(within(strip).getByText("delete"));
     expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("groups a ticket's PRs in Needs you under one header", () => {
+    renderView({
+      openPRs: [
+        { ...prs[0], requested_reviewers: [] },
+        {
+          ...prs[0],
+          id: 2,
+          number: 3311,
+          title: "WMU-402 cleanup",
+          html_url: "https://github.com/o/r/pull/3311",
+          requested_reviewers: [],
+        },
+      ],
+      allIssues: [
+        { key: "WMU-402", summary: "Delete assets", status: { name: "In Progress" } } as JiraIssue,
+      ],
+    });
+    const section = sectionOf("Needs you");
+    expect(within(section).getAllByText("WMU-402")).toHaveLength(1);
+    const header = within(section).getByText("2 PRs").closest(".workday-line") as HTMLElement;
+    expect(within(header).getByText("Delete assets")).toBeTruthy();
+    expect(within(section).getAllByText("Request review")).toHaveLength(2); // One state dot per PR after the count.
+    expect(header.querySelectorAll(".workday-pr-dots i")).toHaveLength(2);
+  });
+
+  it("shows a ticket's PRs under it in Working on by default; Hide PRs is remembered", () => {
+    const issues = [
+      { key: "WMU-402", summary: "Delete assets", status: { name: "In Progress" } } as JiraIssue,
+    ];
+    renderView({ allIssues: issues });
+    const section = () => sectionOf("Working on");
+    const child = within(section()).getByText("r#3310").closest(".workday-item") as HTMLElement;
+    expect(child.classList.contains("workday-item--child")).toBe(true);
+    expect(within(child).getByText("delete")).toBeTruthy();
+    fireEvent.click(within(section()).getByRole("button", { name: "Hide PRs" }));
+    expect(within(section()).queryByText("r#3310")).toBeNull();
+    expect(localStorage.getItem("dev-home-workday-working-prs")).toBe("0");
+    cleanup();
+    renderView({ allIssues: issues });
+    expect(within(section()).queryByText("r#3310")).toBeNull();
+    fireEvent.click(within(section()).getByRole("button", { name: "Show PRs" }));
+    expect(within(section()).getByText("r#3310")).toBeTruthy();
   });
 
   it("shows recent mentions in Focus", () => {
@@ -209,7 +253,7 @@ describe("WorkdayView standup", () => {
     renderView();
     for (const title of [
       "Done since last workday",
-      "In progress",
+      "In Progress",
       "Blockers",
       "Reviewing",
       "Assigned, not started",
@@ -255,14 +299,14 @@ describe("WorkdayView standup", () => {
     expect(document.querySelector(".workday-preview")).toBeNull();
   });
 
-  it("shows each PR once in In progress, with one state badge", () => {
+  it("shows each PR once in In Progress, with one state badge", () => {
     renderView({ openPRs: [{ ...prs[0], requested_reviewers: [] }] });
-    const section = sectionOf("In progress");
+    const section = sectionOf("In Progress");
     expect(within(section).getAllByText("delete")).toHaveLength(1);
     expect(within(section).getByText("No reviewer").className).toContain("badge-status--warning");
   });
 
-  it("lists blockers as one-liners", () => {
+  it("lists blockers as one-liners under their ticket, even a lone one", () => {
     renderView({
       openPRs: [{ ...prs[0], requested_reviewers: [] }],
       allIssues: [
@@ -271,8 +315,37 @@ describe("WorkdayView standup", () => {
     });
     const section = sectionOf("Blockers");
     const line = within(section).getByText("No reviewer").closest(".workday-line") as HTMLElement;
-    expect(within(line).getByText("WMU-402")).toBeTruthy();
     expect(within(line).getByText("delete")).toBeTruthy();
+    expect(within(line).queryByText("WMU-402")).toBeNull();
+    const header = within(section).getByText("1 blocker").closest(".workday-line") as HTMLElement;
+    expect(within(header).getByText("WMU-402")).toBeTruthy();
+    expect(within(header).getByText("Delete assets")).toBeTruthy();
+  });
+
+  it("groups a ticket's blockers under one header", () => {
+    renderView({
+      openPRs: [
+        { ...prs[0], requested_reviewers: [] },
+        {
+          ...prs[0],
+          id: 2,
+          number: 3311,
+          title: "WMU-402 cleanup",
+          html_url: "https://github.com/o/r/pull/3311",
+          has_conflict: true,
+        },
+      ],
+      allIssues: [
+        { key: "WMU-402", summary: "Delete assets", status: { name: "In Progress" } } as JiraIssue,
+      ],
+    });
+    const section = sectionOf("Blockers");
+    expect(within(section).getAllByText("WMU-402")).toHaveLength(1);
+    const header = within(section).getByText("2 blockers").closest(".workday-line") as HTMLElement;
+    expect(within(header).getByText("Delete assets")).toBeTruthy();
+    const child = within(section).getByText("Conflict").closest(".workday-line") as HTMLElement;
+    expect(child.classList.contains("workday-line--child")).toBe(true);
+    expect(within(child).getByText("cleanup")).toBeTruthy();
   });
 
   it("labels reviewing one-liners by whose move it is", () => {
@@ -303,7 +376,8 @@ describe("WorkdayView standup", () => {
     expect(within(section).getByText("Re-requested").className).toContain("workday-tone--warning");
     expect(within(section).getByText("New commits")).toBeTruthy();
     expect(within(section).getByText("Waiting on author")).toBeTruthy();
-    expect(within(section).getAllByText("· abu")).toHaveLength(4);
+    for (const n of [49, 50, 55, 56])
+      expect(within(section).getByText(`r#${n} · abu`)).toBeTruthy();
   });
 
   it("copies a PR's link with a toast", async () => {
@@ -311,16 +385,38 @@ describe("WorkdayView standup", () => {
     Object.assign(navigator, { clipboard: { writeText } });
     renderView();
     await act(async () => {
-      fireEvent.click(screen.getAllByRole("button", { name: "Copy PR link" })[0]);
+      fireEvent.click(screen.getAllByRole("button", { name: "Copy link to r#3310" })[0]);
     });
     expect(writeText).toHaveBeenLastCalledWith("https://github.com/o/r/pull/3310");
     expect(screen.getByRole("status").textContent).toBe("Copied PR link to clipboard");
   });
 
+  it("links a PR's repo#number to GitHub next to its copy icon", () => {
+    renderView();
+    const link = screen.getAllByRole("link", { name: "Open r#3310 on GitHub" })[0];
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/3310");
+    expect(link.getAttribute("target")).toBe("_blank");
+  });
+
+  it("copies a ticket key from next to its pill without opening the row", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.assign(navigator, { clipboard: { writeText } });
+    renderView();
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "Copy WMU-402" })[0]);
+    });
+    expect(writeText).toHaveBeenLastCalledWith("WMU-402");
+    expect(screen.getByRole("status").textContent).toBe("Copied ticket key to clipboard");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.getAllByRole("link", { name: "Open WMU-402 in Jira" })[0].getAttribute("href"),
+    ).toContain("/browse/WMU-402");
+  });
+
   it("opens the PR modal from a row instead of a new tab", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     renderView();
-    fireEvent.click(within(sectionOf("In progress")).getByText("delete"));
+    fireEvent.click(within(sectionOf("In Progress")).getByText("delete"));
     expect(open).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog");
     expect(dialog.querySelector('a[href="https://github.com/o/r/pull/3310"]')).toBeTruthy();
@@ -460,8 +556,8 @@ describe("WorkdaySection", () => {
   it("collapses and expands from the header, remembering the choice", () => {
     standup();
     renderView();
-    const toggle = screen.getByRole("button", { name: /In progress/ });
-    const prIn = () => within(sectionOf("In progress")).queryByText("delete");
+    const toggle = screen.getByRole("button", { name: /In Progress/ });
+    const prIn = () => within(sectionOf("In Progress")).queryByText("delete");
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(prIn()).toBeTruthy();
     fireEvent.click(toggle);
@@ -471,7 +567,7 @@ describe("WorkdaySection", () => {
 
     renderView();
     expect(prIn()).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /In progress/ }));
+    fireEvent.click(screen.getByRole("button", { name: /In Progress/ }));
     expect(prIn()).toBeTruthy();
   });
 

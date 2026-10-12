@@ -46,15 +46,15 @@ export const JiraIssueDrawer: React.FC<JiraIssueDrawerProps> = ({
   // Lists omit the description; lazy-load it (cached) when the drawer opens.
   const { description, loading: isDescLoading } = useIssueDescription(issue, show);
 
-  // A static backdrop swallows outside clicks: they neither close the drawer nor
-  // reach the page (so a stray click can't open another modal). Only the close
-  // button and Escape dismiss the drawer.
+  // The backdrop swallows outside clicks so they never reach the page (a stray
+  // click can't open another modal); clicking it closes the drawer, as do the
+  // close button and Escape.
   return (
     <Offcanvas
       show={show || !!loadingKey}
       onHide={onHide}
       placement="end"
-      backdrop="static"
+      backdrop
       keyboard
       className="jira-issue-drawer"
     >

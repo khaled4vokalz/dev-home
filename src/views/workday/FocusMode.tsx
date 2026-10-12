@@ -1,12 +1,25 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import { IconAt, IconClock, IconTarget } from "@tabler/icons-react";
 import type { GitHubPR } from "../../types";
 import type { StateBadge } from "./prState";
 import { useOptionalJiraDrawer } from "../../context/JiraDrawerContext";
 import { WorkdaySection } from "./WorkdaySection";
 import { NeedsYouStrip } from "./NeedsYouStrip";
-import { OffSprintPill, TicketKey, WorkdayItemRow, WorkdaySubhead } from "./CompactRow";
+import {
+  CountDots,
+  countLabel,
+  GroupedRows,
+  LineSub,
+  OffSprintPill,
+  RowIcon,
+  TicketGroupLine,
+  TicketKey,
+  WorkdayItemRow,
+  WorkdaySubhead,
+} from "./CompactRow";
+import { groupByTicketKey } from "./buildWorkday";
 import { compactAge } from "./dates";
-import { repoRef, titleWithoutKey } from "./prState";
+import { myPRState, titleWithoutKey } from "./prState";
 import type { FocusData, WaitingOnAuthor } from "./types";
 
 type SectionToggle = (id: string) => { collapsed: boolean; onToggle: () => void };
@@ -17,11 +30,15 @@ interface FocusModeProps {
   loading: boolean;
   mentionsLoading: boolean;
   jiraBaseUrl: string;
+  /** Ticket key → summary, for group headers. */
+  ticketTitles: Map<string, string>;
   now: Date;
   sectionToggle: SectionToggle;
   onOpen: (pr: GitHubPR) => void;
-  onCopyLink: (url: string) => void;
 }
+
+/** Working on: list each ticket's PRs under it (persisted; on by default). */
+const SHOW_PRS_KEY = "dev-home-workday-working-prs";
 
 /** "You requested changes · 3d" for a review that's waiting on its author. */
 function authorBadge(w: WaitingOnAuthor, now: Date): StateBadge {
@@ -39,30 +56,63 @@ export function FocusMode({
   loading,
   mentionsLoading,
   jiraBaseUrl,
+  ticketTitles,
   now,
   sectionToggle,
   onOpen,
-  onCopyLink,
 }: FocusModeProps) {
   const openIssue = useOptionalJiraDrawer();
   const [showApproved, setShowApproved] = useState(false);
+  const [showPRs, setShowPRs] = useState(() => localStorage.getItem(SHOW_PRS_KEY) !== "0");
+  const toggleShowPRs = () => {
+    localStorage.setItem(SHOW_PRS_KEY, showPRs ? "0" : "1");
+    setShowPRs(!showPRs);
+  };
   const { needs, mentions, working, waiting } = focus;
   const waitingCount =
     waiting.onReviewers.length + waiting.onAuthor.length + waiting.approved.length;
 
-  const prRow = (pr: GitHubPR, ticketKey: string | null, badge: StateBadge, sub: string) => (
+  const prRow = (
+    pr: GitHubPR,
+    ticketKey: string | null,
+    badge: StateBadge,
+    child = false,
+    author?: string,
+  ) => (
     <WorkdayItemRow
       key={pr.html_url}
       kind="pr"
       ticketKey={ticketKey}
+      hideKey={child}
+      child={child}
       jiraBaseUrl={jiraBaseUrl}
       title={titleWithoutKey(pr.title, ticketKey)}
-      sub={sub}
+      extra={<LineSub pr={pr} after={author} />}
       badge={badge}
       time={compactAge(pr.updated_at, now)}
-      url={pr.html_url}
-      onCopyLink={onCopyLink}
       onClick={() => onOpen(pr)}
+    />
+  );
+
+  /** Waiting rows grouped by ticket, so a ticket's PRs share one header. */
+  const grouped = <T extends { pr: GitHubPR; ticketKey: string | null }>(
+    items: T[],
+    row: (item: T, child: boolean) => React.ReactNode,
+    tone: (item: T) => StateBadge["tone"],
+  ) => (
+    <GroupedRows
+      groups={groupByTicketKey(items, (i) => i.ticketKey)}
+      header={(key, group) => (
+        <TicketGroupLine
+          key={`group:${key}`}
+          ticketKey={key}
+          jiraBaseUrl={jiraBaseUrl}
+          title={ticketTitles.get(key) ?? ""}
+          meta={<CountDots label={countLabel(group.length, "PR")} tones={group.map(tone)} />}
+          onClick={() => openIssue?.(key)}
+        />
+      )}
+      row={row}
     />
   );
 
@@ -74,6 +124,8 @@ export function FocusMode({
         loading={loading}
         error={null}
         jiraBaseUrl={jiraBaseUrl}
+        ticketTitles={ticketTitles}
+        onTicket={(key) => openIssue?.(key)}
         now={now}
         onOpen={onOpen}
       />
@@ -81,10 +133,11 @@ export function FocusMode({
       <WorkdaySection
         {...sectionToggle("mentions")}
         title="Mentions"
+        icon={IconAt}
         count={mentions.length}
         loading={mentionsLoading}
         error={null}
-        hint="last 3 days"
+        hint="Last 3 days"
         empty="No mentions in the last 3 days"
       >
         {mentions.map((m) => (
@@ -100,6 +153,7 @@ export function FocusMode({
             }
           >
             <span className="workday-mention-src">{m.source}</span>
+            <RowIcon kind="mention" />
             <span className="workday-mention-main">
               <span className="workday-mention-line1">
                 <span className="workday-mention-who">{m.who}</span>
@@ -118,33 +172,77 @@ export function FocusMode({
       <WorkdaySection
         {...sectionToggle("working")}
         title="Working on"
+        icon={IconTarget}
         count={working.length}
         loading={loading}
         error={null}
-        hint="your active tickets"
+        hint="Your active tickets"
         empty="No open PRs or in-progress tickets"
+        titleExtra={
+          working.some((w) => w.ticket && w.prs.length > 0) && (
+            <button
+              type="button"
+              className="workday-inline-toggle"
+              aria-pressed={showPRs}
+              onClick={toggleShowPRs}
+            >
+              {showPRs ? "Hide PRs" : "Show PRs"}
+            </button>
+          )
+        }
       >
         {working.map((w) => {
           if (!w.ticket) {
             const pr = w.prs[0];
-            return prRow(pr, null, w.state, `${repoRef(pr)} · no ticket`);
+            return prRow(pr, null, w.state);
           }
           const { ticket } = w;
           const prCount =
             w.prs.length > 0 ? ` · ${w.prs.length} PR${w.prs.length > 1 ? "s" : ""}` : "";
+          const prStates = w.prs.map(myPRState);
+          // Expanded: the same ticket header + nested PRs as Standup's In Progress.
+          if (showPRs && w.prs.length > 0)
+            return (
+              <React.Fragment key={ticket.key}>
+                <TicketGroupLine
+                  ticketKey={ticket.key}
+                  jiraBaseUrl={jiraBaseUrl}
+                  title={ticket.summary}
+                  extra={ticket.offSprint && <OffSprintPill />}
+                  meta={
+                    <CountDots
+                      label={`${ticket.statusName ? `${ticket.statusName} · ` : ""}${countLabel(w.prs.length, "PR")}`}
+                      tones={prStates.map((st) => st.tone)}
+                    />
+                  }
+                  onClick={() => openIssue?.(ticket.key)}
+                />
+                {w.prs.map((pr, i) => prRow(pr, ticket.key, prStates[i], true))}
+              </React.Fragment>
+            );
           return (
-            <WorkdayItemRow
-              key={ticket.key}
-              kind="ticket"
-              ticketKey={ticket.key}
-              jiraBaseUrl={jiraBaseUrl}
-              title={ticket.summary || ticket.key}
-              extra={ticket.offSprint && <OffSprintPill />}
-              sub={`${ticket.statusName ?? "—"}${prCount}`}
-              badge={w.state}
-              time={w.at && compactAge(w.at, now)}
-              onClick={() => openIssue?.(ticket.key)}
-            />
+            <React.Fragment key={ticket.key}>
+              <WorkdayItemRow
+                kind="ticket"
+                ticketKey={ticket.key}
+                jiraBaseUrl={jiraBaseUrl}
+                title={ticket.summary || ticket.key}
+                extra={
+                  <>
+                    {ticket.offSprint && <OffSprintPill />}
+                    <span className="workday-item-inline">
+                      <CountDots
+                        label={`${ticket.statusName ?? "—"}${prCount}`}
+                        tones={prStates.map((st) => st.tone)}
+                      />
+                    </span>
+                  </>
+                }
+                badge={w.state}
+                time={w.at && compactAge(w.at, now)}
+                onClick={() => openIssue?.(ticket.key)}
+              />
+            </React.Fragment>
           );
         })}
       </WorkdaySection>
@@ -152,30 +250,38 @@ export function FocusMode({
       <WorkdaySection
         {...sectionToggle("waiting")}
         title="Waiting on others"
+        icon={IconClock}
         count={waitingCount}
         loading={loading}
         error={null}
-        hint="nothing for you to do · useful for nudging"
+        hint="Nothing for you to do · useful for nudging"
         empty="Not waiting on anyone"
       >
         {waiting.onReviewers.length > 0 && (
           <WorkdaySubhead>Your PRs, waiting on reviewers</WorkdaySubhead>
         )}
-        {waiting.onReviewers.map((w) =>
-          prRow(
-            w.pr,
-            w.ticketKey,
-            { label: `${w.reviewers.join(", ")} · ${compactAge(w.since, now)}`, tone: "neutral" },
-            repoRef(w.pr),
-          ),
+        {grouped(
+          waiting.onReviewers,
+          (w, child) =>
+            prRow(
+              w.pr,
+              w.ticketKey,
+              { label: `${w.reviewers.join(", ")} · ${compactAge(w.since, now)}`, tone: "neutral" },
+              child,
+            ),
+          () => "neutral",
         )}
         {waiting.onAuthor.length > 0 && <WorkdaySubhead>Reviews, waiting on author</WorkdaySubhead>}
-        {waiting.onAuthor.map((w) =>
-          prRow(w.pr, w.ticketKey, authorBadge(w, now), `${w.pr.user.login} · ${repoRef(w.pr)}`),
+        {grouped(
+          waiting.onAuthor,
+          (w, child) => prRow(w.pr, w.ticketKey, authorBadge(w, now), child, w.pr.user.login),
+          (w) => authorBadge(w, now).tone,
         )}
         {showApproved &&
-          waiting.approved.map((w) =>
-            prRow(w.pr, w.ticketKey, authorBadge(w, now), `${w.pr.user.login} · ${repoRef(w.pr)}`),
+          grouped(
+            waiting.approved,
+            (w, child) => prRow(w.pr, w.ticketKey, authorBadge(w, now), child, w.pr.user.login),
+            (w) => authorBadge(w, now).tone,
           )}
         {waiting.approved.length > 0 && (
           <button type="button" className="workday-more" onClick={() => setShowApproved((v) => !v)}>

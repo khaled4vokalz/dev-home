@@ -77,3 +77,9 @@ export function compactAge(iso: string, now: Date): string {
   const days = Math.floor(hours / 24);
   return days < 14 ? `${days}d` : `${Math.floor(days / 7)}w`;
 }
+
+/** How stale `iso` is: "warm" after a day, "hot" after three, null when fresher. */
+export function ageHeat(iso: string, now: Date): "warm" | "hot" | null {
+  const days = (now.getTime() - new Date(iso).getTime()) / 86_400_000;
+  return days >= 3 ? "hot" : days >= 1 ? "warm" : null;
+}

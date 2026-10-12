@@ -9,6 +9,7 @@ import { PRSections, PRSectionsHandle } from "../../components/PRSections";
 import { SearchInput } from "../../components/SearchInput";
 import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
 import { DropdownItem } from "../../components/SearchableDropdown";
+import { usePersistedState } from "../../hooks/usePersistedState";
 import "./PRsView.css";
 
 type PRSubTab = "open" | "merged";
@@ -59,12 +60,25 @@ export const PRsView: React.FC<PRsViewProps> = ({
   // Sidebar filters — Open-PRs only. Recently Merged intentionally has no
   // filters, so this state never leaks across sub-tabs (it stays put while
   // you're on Merged and is still here when you switch back to Open).
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
-  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  // Persisted so they survive switching views and reloads.
+  const [searchQuery, setSearchQuery] = usePersistedState("dev-home-prs-filter-search", "");
+  const [selectedRepos, setSelectedRepos] = usePersistedState<string[]>(
+    "dev-home-prs-filter-repos",
+    [],
+  );
+  const [selectedLabels, setSelectedLabels] = usePersistedState<string[]>(
+    "dev-home-prs-filter-labels",
+    [],
+  );
   // "Actionable" reasons (your turn / CI failed / …) and Jira ticket keys.
-  const [selectedActionable, setSelectedActionable] = useState<string[]>([]);
-  const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [selectedActionable, setSelectedActionable] = usePersistedState<string[]>(
+    "dev-home-prs-filter-actionable",
+    [],
+  );
+  const [selectedTickets, setSelectedTickets] = usePersistedState<string[]>(
+    "dev-home-prs-filter-tickets",
+    [],
+  );
 
   const hasActiveFilters =
     searchQuery.trim() !== "" ||

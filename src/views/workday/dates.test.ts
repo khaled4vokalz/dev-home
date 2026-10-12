@@ -7,6 +7,7 @@ import {
   formatJqlDate,
   formatSinceLabel,
   compactAge,
+  ageHeat,
 } from "./dates";
 import { getWeekendDays, DEFAULT_WEEKEND_DAYS } from "../../services/config";
 
@@ -83,5 +84,17 @@ describe("compactAge", () => {
     expect(compactAge(ago(13 * 24 * 60 * MIN), now)).toBe("13d");
     expect(compactAge(ago(14 * 24 * 60 * MIN), now)).toBe("2w");
     expect(compactAge(ago(30 * 24 * 60 * MIN), now)).toBe("4w");
+  });
+});
+
+describe("ageHeat", () => {
+  const now = new Date("2026-10-12T10:00:00Z");
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+
+  it("is null under a day, warm from a day, hot from three", () => {
+    expect(ageHeat(hoursAgo(23), now)).toBeNull();
+    expect(ageHeat(hoursAgo(24), now)).toBe("warm");
+    expect(ageHeat(hoursAgo(71), now)).toBe("warm");
+    expect(ageHeat(hoursAgo(72), now)).toBe("hot");
   });
 });

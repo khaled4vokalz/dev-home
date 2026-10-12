@@ -5,6 +5,7 @@ import {
   blockerLabel,
   buildWorkday,
   filterWorkday,
+  groupByTicketKey,
   inProgressCount,
   reviewingLines,
   statusCategoryOf,
@@ -566,6 +567,25 @@ describe("blockerLabel", () => {
       "CI failing",
       "Conflict",
       "No reviewer",
+    ]);
+  });
+});
+
+describe("groupByTicketKey", () => {
+  it("groups by key in first-seen order; null keys stand alone", () => {
+    const items = [
+      { id: 1, key: "A-1" },
+      { id: 2, key: "B-1" },
+      { id: 3, key: null },
+      { id: 4, key: "A-1" },
+      { id: 5, key: null },
+    ];
+    const groups = groupByTicketKey(items, (i) => i.key);
+    expect(groups.map((g) => [g.key, g.items.map((i) => i.id)])).toEqual([
+      ["A-1", [1, 4]],
+      ["B-1", [2]],
+      [null, [3]],
+      [null, [5]],
     ]);
   });
 });

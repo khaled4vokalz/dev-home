@@ -103,8 +103,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   return (
     <div>
-      {/* Header */}
-      <div className="d-flex align-items-center justify-content-between mb-3">
+      {/* Header — sticky so Save stays reachable while scrolling */}
+      <div className="settings-header d-flex align-items-center justify-content-between mb-3">
         <div className="d-flex align-items-center gap-3">
           <Button
             variant="outline-secondary"

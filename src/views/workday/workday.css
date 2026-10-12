@@ -2,6 +2,13 @@
    Workday (standup) view
    ============================================ */
 
+.workday-page {
+  /* Fits a 10-character ticket key chip plus its copy / open-in-Jira icons. */
+  --workday-key-col: 148px;
+  /* The one row grid every section shares: key / lead · icon · title · meta. */
+  --workday-row-cols: var(--workday-key-col) 16px minmax(0, 1fr) auto;
+}
+
 .workday-header {
   display: flex;
   align-items: center;
@@ -88,10 +95,47 @@
   color: var(--color-text-muted);
 }
 
+/* Section icon: muted; attention sections (Needs you, Blockers) tint it. */
+.workday-section-icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.workday-needs:not(.workday-needs--empty) .workday-section-icon {
+  color: var(--color-status-warning);
+}
+
+.workday-section--alert .workday-section-icon {
+  color: var(--color-status-danger);
+}
+
 .workday-section-hint {
   color: var(--color-text-muted);
   font-size: 0.75rem;
   font-weight: 400;
+}
+
+/* Small pill control beside a section title (e.g. Working on's Hide PRs). */
+.workday-inline-toggle {
+  padding: 0 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.workday-inline-toggle:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .workday-section-error {
@@ -222,7 +266,11 @@
 }
 
 .workday-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: 0.75rem;
 }
@@ -231,46 +279,115 @@
   color: var(--color-text-muted);
 }
 
-.workday-tone--danger {
-  color: var(--color-status-danger);
-}
-
-.workday-tone--warning {
-  color: var(--color-status-warning);
-}
-
-.workday-tone--info {
-  color: var(--color-status-info);
-}
-
-.workday-tone--success {
-  color: var(--color-status-success);
-}
-
-.workday-tone--purple {
-  color: var(--color-status-purple);
-}
-
 [role="button"].workday-line,
 [role="button"].workday-item,
 .workday-mention {
   cursor: pointer;
 }
 
-/* One-liner: lead · key · title · meta. */
-.workday-line {
+/* Every row (one-liners, PR / ticket rows, mentions) sits on the same grid, so
+   keys, icons, titles and meta line up across sections. */
+.workday-line,
+.workday-item,
+.workday-mention {
   display: grid;
-  grid-template-columns: 124px 80px minmax(0, 1fr) auto;
+  grid-template-columns: var(--workday-row-cols);
   gap: 10px;
-  align-items: baseline;
+  align-items: center;
   padding: 6px var(--space-4);
   font-size: 0.8125rem;
+}
+
+.workday-row-icon {
+  display: inline-flex;
+  color: var(--color-text-secondary);
 }
 
 .workday-line:hover,
 .workday-item:hover,
 .workday-mention:hover {
-  background: var(--color-bg-hover);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+/* Hover rail: a thin accent bar on the hovered row's left edge. */
+.workday-line,
+.workday-item,
+.workday-mention {
+  position: relative;
+}
+
+.workday-line::before,
+.workday-item::before,
+.workday-mention::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--color-accent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.workday-line:hover::before,
+.workday-item:hover::before,
+.workday-mention:hover::before,
+.workday-line:focus-visible::before,
+.workday-item:focus-visible::before,
+.workday-mention:focus-visible::before {
+  opacity: 1;
+}
+
+/* Age heat: waiting times warm after a day and go red after three. */
+.workday-age--warm {
+  color: var(--color-status-warning);
+}
+
+.workday-age--hot {
+  color: var(--color-status-danger);
+  font-weight: 600;
+}
+
+/* State dots: one per PR after an "N PRs" count, and on Needs you tier labels. */
+.workday-pr-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.workday-pr-dots i,
+.workday-tier-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.workday-dot--neutral {
+  background: var(--color-text-muted);
+}
+
+.workday-dot--danger {
+  background: var(--color-status-danger);
+}
+
+.workday-dot--warning {
+  background: var(--color-status-warning);
+}
+
+.workday-dot--info {
+  background: var(--color-status-info);
+}
+
+.workday-dot--success {
+  background: var(--color-status-success);
+}
+
+.workday-dot--purple {
+  background: var(--color-status-purple);
 }
 
 .workday-line-lead {
@@ -298,6 +415,27 @@
   flex-shrink: 0;
 }
 
+/* Lead tones come after .workday-line-lead so they win over its grey. */
+.workday-tone--danger {
+  color: var(--color-status-danger);
+}
+
+.workday-tone--warning {
+  color: var(--color-status-warning);
+}
+
+.workday-tone--info {
+  color: var(--color-status-info);
+}
+
+.workday-tone--success {
+  color: var(--color-status-success);
+}
+
+.workday-tone--purple {
+  color: var(--color-status-purple);
+}
+
 .workday-line-title {
   display: flex;
   align-items: baseline;
@@ -319,42 +457,45 @@
   white-space: nowrap;
 }
 
-/* Ticket header above 2+ PRs: no lead column. */
+/* repo#N, its copy / open icons, then any trailing " · author". */
+.workday-line-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Ticket header above its rows: the summary starts in the icon column, so the
+   rows' titles (after their icons) sit a step further in. */
 .workday-line--group {
-  grid-template-columns: 80px minmax(0, 1fr) auto;
   padding-top: 8px;
   padding-bottom: 2px;
 }
 
-.workday-line--group .workday-line-lead {
+.workday-line--group .workday-row-icon {
   display: none;
+}
+
+.workday-line--group .workday-line-title {
+  grid-column: 2 / 4;
 }
 
 .workday-line--group .workday-line-text {
   color: var(--color-text-secondary);
 }
 
-/* Two-line row: icon · key + title / sub · badge · time. */
-.workday-item {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 7px var(--space-4);
-  font-size: 0.8125rem;
+.workday-line--child .workday-line-lead {
+  padding-left: 14px;
 }
 
-.workday-item--child {
-  padding-left: 38px;
-}
-
-.workday-rows > .workday-line--group + .workday-item--child,
-.workday-rows > .workday-item--child + .workday-item--child {
+.workday-rows > .workday-line--group + .workday-line--child,
+.workday-rows > .workday-line--child + .workday-line--child {
   border-top: none;
 }
 
-.workday-item-icon {
-  color: var(--color-text-secondary);
+.workday-rows > .workday-line--group + .workday-item--child,
+.workday-rows > .workday-item:not(.workday-item--child) + .workday-item--child,
+.workday-rows > .workday-item--child + .workday-item--child {
+  border-top: none;
 }
 
 .workday-item-main {
@@ -375,9 +516,12 @@
   color: var(--color-text-primary);
 }
 
-.workday-item-sub {
+/* Muted facts inline after a title (ticket status · PR count). */
+.workday-item-inline {
+  flex-shrink: 0;
   color: var(--color-text-muted);
   font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .workday-item-side {
@@ -392,25 +536,6 @@
   color: var(--color-text-muted);
   font-size: 0.75rem;
   text-align: right;
-}
-
-.workday-item-copy {
-  display: inline-flex;
-  padding: 2px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  opacity: 0;
-}
-
-.workday-item:hover .workday-item-copy,
-.workday-item-copy:focus-visible {
-  opacity: 1;
-}
-
-.workday-item-copy:hover {
-  color: var(--color-accent);
 }
 
 /* ---------- Needs you ---------- */
@@ -444,6 +569,9 @@
 }
 
 .workday-tier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px var(--space-4) 2px;
   font-size: 0.6875rem;
   color: var(--color-text-muted);
@@ -452,7 +580,6 @@
 }
 
 .workday-line--needs {
-  grid-template-columns: 130px 80px minmax(0, 1fr) auto;
   padding-top: 5px;
   padding-bottom: 5px;
 }
@@ -463,12 +590,11 @@
 
 /* ---------- Mentions ---------- */
 
+/* Two lines (who / where, then the snippet): align to the first. */
 .workday-mention {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 7px var(--space-4);
-  font-size: 0.8125rem;
+  align-items: start;
+  padding-top: 7px;
+  padding-bottom: 7px;
 }
 
 .workday-mention-src {

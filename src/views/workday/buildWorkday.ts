@@ -323,6 +323,33 @@ export function blockerLabel(item: BlockerItem): StateBadge {
   return { label, tone: first === "No reviewer requested" ? "warning" : "danger" };
 }
 
+export interface KeyedGroup<T> {
+  /** Ticket key; null for a ticketless item (always its own group). */
+  key: string | null;
+  items: T[];
+}
+
+/** Group items by ticket key in first-seen order, so a list's order survives. */
+export function groupByTicketKey<T>(
+  items: T[],
+  keyOf: (item: T) => string | null,
+): KeyedGroup<T>[] {
+  const groups: KeyedGroup<T>[] = [];
+  const byKey = new Map<string, KeyedGroup<T>>();
+  for (const item of items) {
+    const key = keyOf(item);
+    const existing = key ? byKey.get(key) : undefined;
+    if (existing) {
+      existing.items.push(item);
+      continue;
+    }
+    const group = { key, items: [item] };
+    groups.push(group);
+    if (key) byKey.set(key, group);
+  }
+  return groups;
+}
+
 /** In progress row count: one per ticket, one per ticketless PR. */
 export function inProgressCount(groups: TicketGroup[]): number {
   return groups.reduce((n, g) => n + (g.ticket ? 1 : g.prs.length), 0);

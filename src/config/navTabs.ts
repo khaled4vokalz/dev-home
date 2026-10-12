@@ -39,7 +39,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { key: "prs", label: "My PRs" },
       { key: "reviews", label: "Reviews" },
       { key: "github-mentions", label: "Comments" },
-      { key: "org-prs", label: "Org PRs" },
+      { key: "org-prs", label: "All PRs" },
     ],
   },
   {

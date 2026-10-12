@@ -16,6 +16,7 @@ import { formatSinceLabel, sinceFor, type Lookback } from "./dates";
 import type { SprintFilter } from "./types";
 import { FocusMode } from "./FocusMode";
 import { LOOKBACKS, StandupMode } from "./StandupMode";
+import { CopyPRLinkContext, CopyTicketContext } from "./CompactRow";
 import "./workday.css";
 
 export interface WorkdayViewProps {
@@ -139,7 +140,7 @@ export function WorkdayView(props: WorkdayViewProps) {
     setExpanded(nextExpanded);
   };
   const [selectedPR, setSelectedPR] = useState<GitHubPR | null>(null);
-  const { copy: copyText, onCopyLink, toast } = usePRCopyActions();
+  const { copy: copyText, onCopyLink, onCopyTicket, toast } = usePRCopyActions();
 
   // F / S switch modes, except while typing or with a modal open.
   useEffect(() => {
@@ -186,6 +187,11 @@ export function WorkdayView(props: WorkdayViewProps) {
     [openPRs, reviewRequests, reviewingPRs, sections, githubMentions, jiraMentions, now],
   );
 
+  const ticketTitles = useMemo(
+    () => new Map([...allIssues, ...assignedIssues].map((i) => [i.key, i.summary])),
+    [allIssues, assignedIssues],
+  );
+
   // StandupNotes seeds this on mount and keeps it in sync.
   const [noteText, setNoteText] = useState("");
   const markdown = useMemo(
@@ -220,89 +226,96 @@ export function WorkdayView(props: WorkdayViewProps) {
   };
 
   return (
-    <div className="workday-page">
-      <div className="workday-header">
-        <h5>Workday</h5>
-        <span className="workday-date-pill">{formatSinceLabel(now)}</span>
-        <SegmentedTabs
-          className="inline-control workday-mode-toggle"
-          tabs={MODES.map((m) => ({
-            key: m,
-            label: (
-              <>
-                {MODE_LABELS[m]} <kbd>{MODE_LABELS[m][0]}</kbd>
-              </>
-            ),
-          }))}
-          activeKey={mode}
-          onChange={(k) => setMode(k as Mode)}
-        />
-        <div className="workday-header-spacer" />
-        {mode === "standup" && (
-          <>
+    <CopyTicketContext.Provider value={onCopyTicket}>
+      <CopyPRLinkContext.Provider value={onCopyLink}>
+        <div className="workday-page">
+          <div className="workday-header">
+            <h5>Workday</h5>
+            <span className="workday-date-pill">{formatSinceLabel(now)}</span>
             <SegmentedTabs
-              className="inline-control"
-              tabs={FILTERS.map((f) => ({ key: f, label: filterLabels[f] }))}
-              activeKey={filter}
-              onChange={(k) => setFilter(k as SprintFilter)}
+              className="inline-control workday-mode-toggle"
+              tabs={MODES.map((m) => ({
+                key: m,
+                label: (
+                  <>
+                    {MODE_LABELS[m]} <kbd>{MODE_LABELS[m][0]}</kbd>
+                  </>
+                ),
+              }))}
+              activeKey={mode}
+              onChange={(k) => setMode(k as Mode)}
             />
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              onClick={toggleCollapseAll}
-              title={allCollapsed ? "Expand all sections" : "Collapse all sections"}
-            >
-              {allCollapsed ? <IconFoldDown size={14} /> : <IconFold size={14} />}{" "}
-              {allCollapsed ? "Expand all" : "Collapse all"}
+            <div className="workday-header-spacer" />
+            {mode === "standup" && (
+              <>
+                <SegmentedTabs
+                  className="inline-control"
+                  tabs={FILTERS.map((f) => ({ key: f, label: filterLabels[f] }))}
+                  activeKey={filter}
+                  onChange={(k) => setFilter(k as SprintFilter)}
+                />
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={toggleCollapseAll}
+                  title={allCollapsed ? "Expand all sections" : "Collapse all sections"}
+                >
+                  {allCollapsed ? <IconFoldDown size={14} /> : <IconFold size={14} />}{" "}
+                  {allCollapsed ? "Expand all" : "Collapse all"}
+                </Button>
+              </>
+            )}
+            <Button variant="outline-secondary" size="sm" onClick={onRefresh}>
+              <IconRefresh size={14} /> Refresh
             </Button>
-          </>
-        )}
-        <Button variant="outline-secondary" size="sm" onClick={onRefresh}>
-          <IconRefresh size={14} /> Refresh
-        </Button>
-        {mode === "standup" && (
-          <Button variant="primary" size="sm" onClick={copy}>
-            <IconCopy size={14} /> Copy standup
-          </Button>
-        )}
-      </div>
-      <div className="workday-subtitle">{subtitle}</div>
+            {mode === "standup" && (
+              <Button variant="primary" size="sm" onClick={copy}>
+                <IconCopy size={14} /> Copy standup
+              </Button>
+            )}
+          </div>
+          <div className="workday-subtitle">{subtitle}</div>
 
-      {mode === "focus" ? (
-        <FocusMode
-          focus={focus}
-          loading={loading}
-          mentionsLoading={mentionsLoading}
-          jiraBaseUrl={jiraBaseUrl}
-          now={now}
-          sectionToggle={sectionToggle}
-          onOpen={setSelectedPR}
-          onCopyLink={onCopyLink}
-        />
-      ) : (
-        <StandupMode
-          sections={filtered}
-          sinceLabel={sinceLabel}
-          lookback={lookback}
-          onLookback={setLookback}
-          loading={loading}
-          jiraBaseUrl={jiraBaseUrl}
-          now={now}
-          sectionToggle={sectionToggle}
-          onOpen={setSelectedPR}
-          onCopyLink={onCopyLink}
-          markdown={markdown}
-          onNoteChange={setNoteText}
-          notes={notes}
-          notesLoaded={notesLoaded}
-          addNote={addNote}
-          editNote={editNote}
-        />
-      )}
+          {mode === "focus" ? (
+            <FocusMode
+              focus={focus}
+              loading={loading}
+              mentionsLoading={mentionsLoading}
+              jiraBaseUrl={jiraBaseUrl}
+              ticketTitles={ticketTitles}
+              now={now}
+              sectionToggle={sectionToggle}
+              onOpen={setSelectedPR}
+            />
+          ) : (
+            <StandupMode
+              sections={filtered}
+              sinceLabel={sinceLabel}
+              lookback={lookback}
+              onLookback={setLookback}
+              loading={loading}
+              jiraBaseUrl={jiraBaseUrl}
+              now={now}
+              sectionToggle={sectionToggle}
+              onOpen={setSelectedPR}
+              markdown={markdown}
+              onNoteChange={setNoteText}
+              notes={notes}
+              notesLoaded={notesLoaded}
+              addNote={addNote}
+              editNote={editNote}
+            />
+          )}
 
-      <PRDetailModal pr={selectedPR} onHide={() => setSelectedPR(null)} jiraBaseUrl={jiraBaseUrl} />
+          <PRDetailModal
+            pr={selectedPR}
+            onHide={() => setSelectedPR(null)}
+            jiraBaseUrl={jiraBaseUrl}
+          />
 
-      <Toast message={toast.message} visible={toast.visible} />
-    </div>
+          <Toast message={toast.message} visible={toast.visible} />
+        </div>
+      </CopyPRLinkContext.Provider>
+    </CopyTicketContext.Provider>
   );
 }

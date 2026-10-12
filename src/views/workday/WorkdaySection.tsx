@@ -1,11 +1,13 @@
 import React from "react";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronRight, type Icon } from "@tabler/icons-react";
 import Card from "react-bootstrap/Card";
 import { Badge } from "../../components/primitives/Badge";
 import { SectionHeader } from "../../components/primitives/SectionHeader";
 
 interface WorkdaySectionProps {
   title: string;
+  /** Small outline icon before the title (muted; tinted by attention sections). */
+  icon?: Icon;
   count: number;
   loading: boolean;
   error: string | null;
@@ -14,6 +16,8 @@ interface WorkdaySectionProps {
   /** Muted text after the count. */
   hint?: string;
   actions?: React.ReactNode;
+  /** Small inline control right after the title (hidden while collapsed). */
+  titleExtra?: React.ReactNode;
   className?: string;
   collapsed: boolean;
   onToggle: () => void;
@@ -27,12 +31,14 @@ interface WorkdaySectionProps {
  */
 export function WorkdaySection({
   title,
+  icon: TitleIcon,
   count,
   loading,
   error,
   empty,
   hint,
   actions,
+  titleExtra,
   className = "",
   collapsed,
   onToggle,
@@ -54,12 +60,14 @@ export function WorkdaySection({
             aria-expanded={!collapsed}
           >
             <Chevron size={16} stroke={2} className="workday-section-chevron" />
+            {TitleIcon && <TitleIcon size={14} stroke={1.8} className="workday-section-icon" />}
             <span>{title}</span>
             <Badge variant="neutral" className="workday-section-count">
               {count}
             </Badge>
             {hint && <span className="workday-section-hint">{hint}</span>}
           </button>
+          {!collapsed && titleExtra}
         </SectionHeader>
         {!collapsed && (
           <>

@@ -1,15 +1,34 @@
 import React from "react";
-import { IconCopy, IconGitPullRequest, IconTicket } from "@tabler/icons-react";
+import {
+  IconCopy,
+  IconExternalLink,
+  IconGitPullRequest,
+  IconMessageCircle,
+  IconTicket,
+} from "@tabler/icons-react";
+import { jiraBrowseUrl } from "../../utils/tickets";
 import { TicketChip } from "../../components/TicketGroupHeader";
 import { Badge } from "../../components/primitives/Badge";
-import type { StateBadge } from "./prState";
+import type { GitHubPR } from "../../types";
+import { repoRef, type StateBadge } from "./prState";
+import type { KeyedGroup } from "./buildWorkday";
+import { ageHeat, compactAge } from "./dates";
 
 /** Dashed marker for tickets assigned to me but not in an active sprint. */
 export function OffSprintPill() {
   return <span className="workday-pill workday-pill--offsprint">Off-sprint</span>;
 }
 
-/** Ticket key; its click opens the Jira drawer (not the row). "—" when none. */
+/** Copies a ticket key with a toast; provided by WorkdayView. */
+export const CopyTicketContext = React.createContext<((key: string) => void) | null>(null);
+
+/** Copies a PR link with a toast; provided by WorkdayView. */
+export const CopyPRLinkContext = React.createContext<((url: string) => void) | null>(null);
+
+/**
+ * Ticket key chip (click opens the Jira drawer), then copy-key and open-in-Jira
+ * icons. "—" when none. The icons stop propagation so the row doesn't open.
+ */
 export function TicketKey({
   ticketKey,
   jiraBaseUrl,
@@ -17,11 +36,113 @@ export function TicketKey({
   ticketKey: string | null;
   jiraBaseUrl: string;
 }) {
+  const onCopy = React.useContext(CopyTicketContext);
   if (!ticketKey) return <span className="workday-key workday-key--none">—</span>;
   return (
     <span className="workday-key">
       <TicketChip ticket={ticketKey} jiraBaseUrl={jiraBaseUrl} />
+      {onCopy && (
+        <button
+          type="button"
+          className="pr-cluster-icon-btn"
+          title="Copy ticket key"
+          aria-label={`Copy ${ticketKey}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy(ticketKey);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <IconCopy size={13} stroke={1.8} />
+        </button>
+      )}
+      {jiraBaseUrl && (
+        <a
+          className="pr-cluster-ext"
+          href={jiraBrowseUrl(jiraBaseUrl, ticketKey)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open in Jira"
+          aria-label={`Open ${ticketKey} in Jira`}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <IconExternalLink size={13} stroke={1.8} />
+        </a>
+      )}
     </span>
+  );
+}
+
+/**
+ * Muted "repo#12", then copy-link and open-on-GitHub icons (like TicketKey's),
+ * plus any extra bits, after a one-liner's title.
+ */
+export function LineSub({ pr, after }: { pr: GitHubPR; after?: string }) {
+  const onCopy = React.useContext(CopyPRLinkContext);
+  const ref = repoRef(pr);
+  return (
+    <span className="workday-line-sub">
+      {ref}
+      {onCopy && (
+        <button
+          type="button"
+          className="pr-cluster-icon-btn"
+          title="Copy PR link"
+          aria-label={`Copy link to ${ref}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy(pr.html_url);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <IconCopy size={13} stroke={1.8} />
+        </button>
+      )}
+      <a
+        className="pr-cluster-ext"
+        href={pr.html_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open on GitHub"
+        aria-label={`Open ${ref} on GitHub`}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <IconExternalLink size={13} stroke={1.8} />
+      </a>
+      {after && ` · ${after}`}
+    </span>
+  );
+}
+
+/** Compact age that turns amber after a day and red after three (waiting matters). */
+export function HeatAge({ iso, now }: { iso: string; now: Date }) {
+  const heat = ageHeat(iso, now);
+  return <span className={heat ? `workday-age--${heat}` : undefined}>{compactAge(iso, now)}</span>;
+}
+
+/** One small dot per PR in its state's colour, after an "N PRs" count. */
+export function PRDots({ tones }: { tones: StateBadge["tone"][] }) {
+  return (
+    <span className="workday-pr-dots" aria-hidden="true">
+      {tones.map((tone, i) => (
+        <i key={i} className={`workday-dot--${tone}`} />
+      ))}
+    </span>
+  );
+}
+
+/** "1 PR" / "3 PRs". */
+export const countLabel = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+/** "3 PRs ●●●": a count followed by its state dots. */
+export function CountDots({ label, tones }: { label: string; tones: StateBadge["tone"][] }) {
+  return (
+    <>
+      {label}
+      <PRDots tones={tones} />
+    </>
   );
 }
 
@@ -42,13 +163,31 @@ function clickable(onClick?: () => void) {
   };
 }
 
+export type RowKind = "pr" | "ticket" | "mention";
+
+const ROW_ICONS = { pr: IconGitPullRequest, ticket: IconTicket, mention: IconMessageCircle };
+
+/** The shared grid's icon column; an empty cell when the row has no icon. */
+export function RowIcon({ kind }: { kind?: RowKind }) {
+  const Icon = kind && ROW_ICONS[kind];
+  return (
+    <span className="workday-row-icon">
+      {Icon && <Icon size={16} stroke={1.75} aria-hidden="true" />}
+    </span>
+  );
+}
+
 interface WorkdayLineProps {
   /** Left label (verb / what / state), coloured by tone. */
   lead: React.ReactNode;
   tone?: StateBadge["tone"];
   /** Draws a dot before the lead (Needs you verbs). */
   dot?: boolean;
+  /** Icon in the icon column: what the row is (a PR or a ticket). */
+  icon?: RowKind;
   ticketKey: string | null;
+  /** Show the lead instead of the key (lines under a ticket header). */
+  hideKey?: boolean;
   jiraBaseUrl: string;
   title: React.ReactNode;
   /** Extra inline bits after the title (off-sprint pill, author). */
@@ -58,12 +197,17 @@ interface WorkdayLineProps {
   onClick?: () => void;
 }
 
-/** A one-liner: lead label · ticket key · title · meta. */
+/**
+ * A one-liner on the shared row grid: key (or, without one, the lead label) ·
+ * icon · title · meta. Nested under a ticket header the lead replaces the key.
+ */
 export function WorkdayLine({
   lead,
   tone,
   dot,
+  icon,
   ticketKey,
+  hideKey,
   jiraBaseUrl,
   title,
   extra,
@@ -71,14 +215,19 @@ export function WorkdayLine({
   className = "",
   onClick,
 }: WorkdayLineProps) {
+  const showKey = !hideKey && !!ticketKey;
   return (
     <div className={`workday-line ${className}`.trim()} {...clickable(onClick)}>
-      <span
-        className={`workday-line-lead${tone ? ` workday-tone--${tone}` : ""}${dot ? " workday-line-lead--dot" : ""}`}
-      >
-        {lead}
-      </span>
-      <TicketKey ticketKey={ticketKey} jiraBaseUrl={jiraBaseUrl} />
+      {showKey ? (
+        <TicketKey ticketKey={ticketKey} jiraBaseUrl={jiraBaseUrl} />
+      ) : (
+        <span
+          className={`workday-line-lead${tone ? ` workday-tone--${tone}` : ""}${dot ? " workday-line-lead--dot" : ""}`}
+        >
+          {lead}
+        </span>
+      )}
+      <RowIcon kind={icon} />
       <span className="workday-line-title">
         <span className="workday-line-text">{title}</span>
         {extra}
@@ -96,19 +245,18 @@ interface WorkdayItemRowProps {
   jiraBaseUrl: string;
   title: React.ReactNode;
   extra?: React.ReactNode;
-  sub?: React.ReactNode;
   badge?: StateBadge | null;
   /** Badge tooltip. */
   badgeTitle?: string;
   time?: string | null;
-  /** Shows a copy-link button on hover. */
-  url?: string;
-  onCopyLink?: (url: string) => void;
   child?: boolean;
   onClick?: () => void;
 }
 
-/** A two-line row: icon · key + title / sub-line · one state badge · time. */
+/**
+ * A PR / ticket row on the shared row grid: key (empty when nested or
+ * ticketless) · icon · title + inline extras (repo#N, status) · badge · time.
+ */
 export function WorkdayItemRow({
   kind,
   ticketKey = null,
@@ -116,42 +264,27 @@ export function WorkdayItemRow({
   jiraBaseUrl,
   title,
   extra,
-  sub,
   badge,
   badgeTitle,
   time,
-  url,
-  onCopyLink,
   child,
   onClick,
 }: WorkdayItemRowProps) {
-  const Icon = kind === "pr" ? IconGitPullRequest : IconTicket;
   return (
     <div className={`workday-item${child ? " workday-item--child" : ""}`} {...clickable(onClick)}>
-      <Icon size={16} stroke={1.75} className="workday-item-icon" />
+      {!hideKey && ticketKey ? (
+        <TicketKey ticketKey={ticketKey} jiraBaseUrl={jiraBaseUrl} />
+      ) : (
+        <span />
+      )}
+      <RowIcon kind={kind} />
       <div className="workday-item-main">
         <div className="workday-item-line1">
-          {!hideKey && <TicketKey ticketKey={ticketKey} jiraBaseUrl={jiraBaseUrl} />}
           <span className="workday-item-title">{title}</span>
           {extra}
         </div>
-        {sub && <div className="workday-item-sub">{sub}</div>}
       </div>
       <div className="workday-item-side">
-        {url && onCopyLink && (
-          <button
-            type="button"
-            className="workday-item-copy"
-            title="Copy PR link"
-            aria-label="Copy PR link"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopyLink(url);
-            }}
-          >
-            <IconCopy size={13} />
-          </button>
-        )}
         {badge && (
           <Badge variant={badge.tone} title={badgeTitle}>
             {badge.label}
@@ -160,6 +293,51 @@ export function WorkdayItemRow({
         <span className="workday-item-time">{time}</span>
       </div>
     </div>
+  );
+}
+
+interface TicketGroupLineProps {
+  ticketKey: string;
+  jiraBaseUrl: string;
+  title: React.ReactNode;
+  extra?: React.ReactNode;
+  meta?: React.ReactNode;
+  onClick?: () => void;
+}
+
+/** Header above a ticket's rows: key · summary · meta. */
+export function TicketGroupLine({ ticketKey, ...rest }: TicketGroupLineProps) {
+  return (
+    <WorkdayLine className="workday-line--group" lead={null} ticketKey={ticketKey} {...rest} />
+  );
+}
+
+interface GroupedRowsProps<T> {
+  groups: KeyedGroup<T>[];
+  /** Header for a ticket's items. */
+  header: (key: string, items: T[]) => React.ReactNode;
+  /** One item's row; `child` when nested under a header (hide the key). */
+  row: (item: T, child: boolean) => React.ReactNode;
+}
+
+/**
+ * Rows grouped by ticket: every ticket gets a header (key + summary) with its
+ * items nested under it, even a lone one; ticketless items stand alone.
+ */
+export function GroupedRows<T>({ groups, header, row }: GroupedRowsProps<T>) {
+  return (
+    <>
+      {groups.map((g) =>
+        g.key ? (
+          <React.Fragment key={g.key}>
+            {header(g.key, g.items)}
+            {g.items.map((item) => row(item, true))}
+          </React.Fragment>
+        ) : (
+          g.items.map((item) => row(item, false))
+        ),
+      )}
+    </>
   );
 }
 
