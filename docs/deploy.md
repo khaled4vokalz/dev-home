@@ -55,13 +55,13 @@ One Worker named `dev-home` serves the static app from `dist/` (Workers Static A
 
 - A Cloudflare account (the free plan is enough)
 - Node.js 22.12+ and Yarn
-- Dependencies installed with `yarn install`. `wrangler` is a devDependency, so run it as `yarn wrangler`.
+- Dependencies installed with `pnpm install`. `wrangler` is a devDependency, so run it as `pnpm wrangler`.
 
 ### Deploy
 
 ```bash
-yarn wrangler login   # one-time: authorize wrangler with your Cloudflare account
-yarn deploy:cf        # = yarn build && wrangler deploy
+pnpm wrangler login   # one-time: authorize wrangler with your Cloudflare account
+pnpm deploy:cf        # = pnpm build && wrangler deploy
 ```
 
 The app is then live at `https://dev-home.<your-subdomain>.workers.dev`.
@@ -118,7 +118,7 @@ To redirect `http://` to `https://`, turn on **SSL/TLS → Edge Certificates →
 Pull the latest code and re-run:
 
 ```bash
-yarn deploy:cf
+pnpm deploy:cf
 ```
 
 ### Deploy from CI (optional)
@@ -126,7 +126,7 @@ yarn deploy:cf
 `.github/workflows/deploy.yml` runs typecheck, lint and tests, then deploys on every push to `web-vite`. You can also start it by hand from the **Actions** tab. It needs two repository secrets:
 
 1. Create the token. In the Cloudflare dashboard, go to **My Profile**, then **API Tokens**, then **Create Token**, and use the **Edit Cloudflare Workers** template. Limit it to your account (and to no zones, unless you use a custom domain).
-2. Find your account ID with `yarn wrangler whoami`, or on the Workers & Pages overview page.
+2. Find your account ID with `pnpm wrangler whoami`, or on the Workers & Pages overview page.
 3. Add both as secrets, either in GitHub under **Settings**, then **Secrets and variables**, then **Actions**, or with the GitHub CLI:
 
    ```bash
@@ -137,26 +137,26 @@ yarn deploy:cf
 For other CI systems, expose the same two values as the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` environment variables and run:
 
 ```bash
-yarn install --frozen-lockfile
-yarn deploy:cf
+pnpm install --frozen-lockfile
+pnpm deploy:cf
 ```
 
 `wrangler` uses these variables instead of `wrangler login`.
 
 ## Docker / any Node host (self-host)
 
-You need Node.js 22.12+ to install dependencies and build. `yarn build` produces the static app in `dist/`. It also bundles the Node server into `dist-server/server.mjs`, which has no runtime dependencies. The server serves `dist/` with an SPA fallback and security headers, and routes `/jira-proxy/*` to the proxy.
+You need Node.js 22.12+ to install dependencies and build. `pnpm build` produces the static app in `dist/`. It also bundles the Node server into `dist-server/server.mjs`, which has no runtime dependencies. The server serves `dist/` with an SPA fallback and security headers, and routes `/jira-proxy/*` to the proxy.
 
 ```bash
-yarn install
-yarn build
-yarn start            # = node dist-server/server.mjs
+pnpm install
+pnpm build
+pnpm start            # = node dist-server/server.mjs
 ```
 
 The server listens on port 3000 by default. You can configure it with environment variables:
 
 ```bash
-PORT=8080 JIRA_ALLOWED_HOSTS=jira.example.com yarn start
+PORT=8080 JIRA_ALLOWED_HOSTS=jira.example.com pnpm start
 ```
 
 To run only the built output on a server, copy `dist/` and `dist-server/` together and run `node dist-server/server.mjs`.
@@ -198,7 +198,7 @@ By default the app calls the proxy on its own origin at `/jira-proxy`. To serve 
 1. Build the app with the proxy URL:
 
    ```bash
-   VITE_JIRA_PROXY_URL=https://proxy.example.com/jira-proxy yarn build
+   VITE_JIRA_PROXY_URL=https://proxy.example.com/jira-proxy pnpm build
    ```
 
 2. On the proxy deployment, set `ALLOWED_ORIGINS` to the app's origin, for example `ALLOWED_ORIGINS=https://devhome.example.com`.

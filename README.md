@@ -64,13 +64,13 @@ To run your own copy instead of using [app.devhome.fyi](https://app.devhome.fyi/
 1. Install dependencies:
 
 ```bash
-yarn install
+pnpm install
 ```
 
 2. Start the Vite dev server, which also serves the Jira proxy at `/jira-proxy`:
 
 ```bash
-yarn dev
+pnpm dev
 ```
 
 3. Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -151,18 +151,18 @@ Your notes, teams, filters, and focus state will be imported into the browser. S
 Build the static app and the Node server:
 
 ```bash
-yarn build
+pnpm build
 ```
 
 This writes the static app to `dist/` and the Node server bundle to `dist-server/server.mjs`. To serve the build locally, with the Jira proxy, on port 3000 (set `PORT` to change it), run:
 
 ```bash
-yarn start
+pnpm start
 ```
 
 ## Install as an app
 
-Dev Home is an installable web app (PWA). Open [app.devhome.fyi](https://app.devhome.fyi/) (or your own deployment, or `yarn start`, but not `yarn dev`), then:
+Dev Home is an installable web app (PWA). Open a deployed build or `pnpm start` (not `pnpm dev`), then:
 
 - **Chrome / Edge:** click the install icon in the address bar.
 - **Safari:** choose **Share → Add to Dock** (macOS) or **Share → Add to Home Screen** (iOS).
@@ -171,7 +171,7 @@ The installed app opens in its own window. Offline, it only works with your loca
 
 ## Deployment
 
-The recommended host is Cloudflare Workers (free plan): run `yarn wrangler login` once, then `yarn deploy:cf`. Docker and any Node.js host are also supported. See [docs/deploy.md](docs/deploy.md) for the full guide, including environment variables, rate limiting and security considerations.
+The recommended host is Cloudflare Workers (free plan): run `pnpm wrangler login` once, then `pnpm deploy:cf`. Docker and any Node.js host are also supported. See [docs/deploy.md](docs/deploy.md) for the full guide, including environment variables, rate limiting and security considerations.
 
 ## Troubleshooting
 
