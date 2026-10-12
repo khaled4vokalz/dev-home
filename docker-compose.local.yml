@@ -1,0 +1,21 @@
+# Local self-host: docker compose -f docker-compose.local.yml up -d --build
+# Then open http://127.0.0.1:47821 (always this exact origin: tokens live in its localStorage).
+services:
+  dev-home:
+    build: .
+    image: dev-home:local
+    container_name: dev-home
+    restart: unless-stopped
+    # Loopback only, so nothing else on the network can reach the app or its Jira proxy.
+    # A dedicated port keeps other local dev servers off this origin's localStorage.
+    ports:
+      - "127.0.0.1:47821:3000"
+    # The server is stateless (no volumes): it serves static files and forwards Jira calls.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    user: node
+    mem_limit: 256m
+    pids_limit: 64

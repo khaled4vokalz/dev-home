@@ -148,6 +148,8 @@ export function createServer(opts: { distDir: string; env: ProxyEnv }): http.Ser
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT) || 3000;
+  // Unset listens on all interfaces (needed in Docker); HOST=127.0.0.1 keeps it on this machine.
+  const host = process.env.HOST || undefined;
   const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
   createServer({
     distDir,
@@ -155,7 +157,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
       JIRA_ALLOWED_HOSTS: process.env.JIRA_ALLOWED_HOSTS,
     },
-  }).listen(port, () => {
-    console.log(`Dev Home listening on http://localhost:${port}`);
+  }).listen(port, host, () => {
+    console.log(`Dev Home listening on http://${host ?? "localhost"}:${port}`);
   });
 }
