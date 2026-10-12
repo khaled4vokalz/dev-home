@@ -20,6 +20,13 @@ const TIER_LABEL: Record<NeedsTier, string> = {
   ship: "Ship",
 };
 
+/** What each tier holds, shown beside its label. */
+const TIER_HINT: Record<NeedsTier, string> = {
+  self: "Your PRs that are stuck",
+  others: "People waiting on your review",
+  ship: "Ready to merge",
+};
+
 /** Colour of each tier's label dot. */
 const TIER_TONE: Record<NeedsTier, StateBadge["tone"]> = {
   self: "danger",
@@ -77,10 +84,14 @@ export function NeedsYouStrip({
         const tierItems = items.filter((i) => i.tier === tier);
         if (tierItems.length === 0) return null;
         return (
-          <div key={tier} className="workday-needs-tier">
-            <div className="workday-tier">
+          // Each tier is its own row list, so ticket groups and loose PRs get
+          // the standard dividers; the tier header is a full-width band.
+          <div key={tier} className="workday-needs-tier workday-rows">
+            <div className="workday-subhead workday-tier">
               <i className={`workday-tier-dot workday-dot--${TIER_TONE[tier]}`} />
-              {TIER_LABEL[tier]}
+              <span className="workday-tier-label">{TIER_LABEL[tier]}</span>
+              <span className="workday-tier-count">{tierItems.length}</span>
+              <span className="workday-tier-hint">{TIER_HINT[tier]}</span>
             </div>
             <GroupedRows
               groups={groupByTicketKey(tierItems, (i) => i.ticketKey)}

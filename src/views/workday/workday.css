@@ -258,11 +258,14 @@
 
 .workday-subhead {
   padding: 5px var(--space-4);
-  font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-text-muted);
   background: var(--color-bg-hover);
+  font-weight: bold;
+  font-size: 0.85em;
+  padding: 10px;
+  border-bottom: 2px solid rgb(0, 0, 0, 10%);
 }
 
 .workday-key {
@@ -465,10 +468,11 @@
 }
 
 /* Ticket header above its rows: the summary starts in the icon column, so the
-   rows' titles (after their icons) sit a step further in. */
+   rows' titles (after their icons) sit a step further in. Padding stays even so
+   the key and summary centre in the hover band. */
 .workday-line--group {
-  padding-top: 8px;
-  padding-bottom: 2px;
+  padding-top: 5px;
+  padding-bottom: 5px;
 }
 
 .workday-line--group .workday-row-icon {
@@ -542,7 +546,8 @@
 
 .workday-needs {
   border-color: color-mix(in srgb, var(--color-status-warning) 45%, transparent);
-  background: linear-gradient(
+  background:
+    linear-gradient(
       color-mix(in srgb, var(--color-status-warning) 5%, transparent),
       color-mix(in srgb, var(--color-status-warning) 1.5%, transparent)
     ),
@@ -564,19 +569,26 @@
   display: none;
 }
 
-.workday-needs .workday-rows > * + * {
-  border-top: none;
-}
-
+/* Tier header: the shared subhead band, plus a dot, count and hint. */
 .workday-tier {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px var(--space-4) 2px;
-  font-size: 0.6875rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+}
+
+.workday-tier-label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.workday-tier-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.workday-tier-hint {
+  margin-left: var(--space-1);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .workday-line--needs {
