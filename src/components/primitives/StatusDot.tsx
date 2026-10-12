@@ -2,14 +2,7 @@ import React from "react";
 import "./StatusDot.css";
 
 export type StatusDotVariant =
-  | "online"
-  | "offline"
-  | "info"
-  | "success"
-  | "warning"
-  | "danger"
-  | "purple"
-  | "neutral";
+  "online" | "offline" | "info" | "success" | "warning" | "danger" | "purple" | "neutral";
 
 interface StatusDotProps {
   variant: StatusDotVariant;

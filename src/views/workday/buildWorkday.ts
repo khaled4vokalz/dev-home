@@ -191,23 +191,19 @@ export function buildWorkday(inp: WorkdayInputs, now: Date): WorkdaySections {
 
   // Done since.
   const done: DoneItem[] = [
-    ...(extras.merged.data ?? []).map(
-      (pr): DoneItem => ({
-        kind: "merged",
-        pr,
-        ticket: prRef(pr),
-        at: pr.merged_at ?? pr.updated_at,
-      }),
-    ),
-    ...(extras.reviewed.data ?? []).map(
-      (r): DoneItem => ({
-        kind: "reviewed",
-        pr: r.pr,
-        ticket: prRef(r.pr, false),
-        state: r.state,
-        at: r.submittedAt,
-      }),
-    ),
+    ...(extras.merged.data ?? []).map((pr): DoneItem => ({
+      kind: "merged",
+      pr,
+      ticket: prRef(pr),
+      at: pr.merged_at ?? pr.updated_at,
+    })),
+    ...(extras.reviewed.data ?? []).map((r): DoneItem => ({
+      kind: "reviewed",
+      pr: r.pr,
+      ticket: prRef(r.pr, false),
+      state: r.state,
+      at: r.submittedAt,
+    })),
     ...(extras.doneTickets.data ?? []).map((t): DoneItem => {
       if (!lookup.has(t.key.toUpperCase()))
         lookup.set(t.key.toUpperCase(), { summary: t.summary, statusName: t.toStatus });

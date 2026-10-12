@@ -29,11 +29,7 @@ import { usePRNoteCounts } from "../hooks/usePRNoteCounts";
 import "./PRTable.css";
 
 type PRTableVariant =
-  | "my-prs"
-  | "review-requests"
-  | "org-prs"
-  | "recently-merged"
-  | "recently-merged-org";
+  "my-prs" | "review-requests" | "org-prs" | "recently-merged" | "recently-merged-org";
 
 interface PRTableProps {
   prs: GitHubPR[];

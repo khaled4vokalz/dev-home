@@ -105,30 +105,26 @@ const snippetOf = (text: string) =>
 function buildMentions(inp: FocusInputs, now: Date): MentionItem[] {
   const cutoff = now.getTime() - MENTION_WINDOW_MS;
   const items: MentionItem[] = [
-    ...inp.githubMentions.map(
-      (m): MentionItem => ({
-        id: `gh:${m.id}`,
-        source: "GitHub",
-        who: m.user.login,
-        ticketKey: extractTicketKey({ title: m.context_title }),
-        where: `${m.repo_full_name.split("/").pop()}#${m.pr_number}`,
-        snippet: snippetOf(m.body),
-        at: m.created_at,
-        url: m.html_url,
-      }),
-    ),
-    ...inp.jiraMentions.map(
-      (c): MentionItem => ({
-        id: `jira:${c.id}`,
-        source: "Jira",
-        who: c.author.displayName,
-        ticketKey: c.issueKey,
-        where: c.issueKey,
-        snippet: snippetOf(c.body.text),
-        at: c.created,
-        url: "",
-      }),
-    ),
+    ...inp.githubMentions.map((m): MentionItem => ({
+      id: `gh:${m.id}`,
+      source: "GitHub",
+      who: m.user.login,
+      ticketKey: extractTicketKey({ title: m.context_title }),
+      where: `${m.repo_full_name.split("/").pop()}#${m.pr_number}`,
+      snippet: snippetOf(m.body),
+      at: m.created_at,
+      url: m.html_url,
+    })),
+    ...inp.jiraMentions.map((c): MentionItem => ({
+      id: `jira:${c.id}`,
+      source: "Jira",
+      who: c.author.displayName,
+      ticketKey: c.issueKey,
+      where: c.issueKey,
+      snippet: snippetOf(c.body.text),
+      at: c.created,
+      url: "",
+    })),
   ];
   return newestFirst(
     items.filter((m) => time(m.at) >= cutoff),
