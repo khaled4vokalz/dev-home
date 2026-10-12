@@ -12,7 +12,7 @@ import {
 } from "./CompactRow";
 import { groupByTicketKey } from "./buildWorkday";
 import { titleWithoutKey, type StateBadge } from "./prState";
-import type { NeedsItem, NeedsTier } from "./types";
+import { NEEDS_TIER_ORDER, type NeedsItem, type NeedsTier } from "./types";
 
 const TIER_LABEL: Record<NeedsTier, string> = {
   self: "Unblock yourself",
@@ -34,8 +34,6 @@ const TIER_TONE: Record<NeedsTier, StateBadge["tone"]> = {
   ship: "success",
 };
 
-const TIERS: NeedsTier[] = ["self", "others", "ship"];
-
 interface NeedsYouStripProps {
   items: NeedsItem[];
   loading: boolean;
@@ -51,7 +49,7 @@ interface NeedsYouStripProps {
 }
 
 /**
- * Focus's to-do strip: what's waiting on me, most blocking first. View-only:
+ * Focus's to-do strip: what's waiting on me, approved PRs first, then most blocking. View-only:
  * the coloured verb is a label, and items clear when upstream state changes.
  */
 export function NeedsYouStrip({
@@ -75,12 +73,12 @@ export function NeedsYouStrip({
       loading={loading}
       error={error}
       empty={<span className="workday-all-clear">✓ Nothing needs you right now</span>}
-      hint={empty ? undefined : "Most blocking first"}
+      hint={empty ? undefined : "Ready to merge first"}
       className={`workday-needs${empty ? " workday-needs--empty" : ""}`}
       collapsed={collapsed}
       onToggle={onToggle}
     >
-      {TIERS.map((tier) => {
+      {NEEDS_TIER_ORDER.map((tier) => {
         const tierItems = items.filter((i) => i.tier === tier);
         if (tierItems.length === 0) return null;
         return (

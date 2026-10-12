@@ -12,10 +12,10 @@ import type {
   WaitingOnAuthor,
   WorkingItem,
 } from "./types";
+import { NEEDS_TIER_ORDER } from "./types";
 
 /** Mentions older than this are left out of Focus. */
 const MENTION_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
-const TIER_ORDER: NeedsTier[] = ["self", "others", "ship"];
 
 const time = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : 0);
 const newestFirst = <T>(items: T[], at: (item: T) => string | null | undefined) =>
@@ -85,7 +85,7 @@ function buildNeeds(inp: FocusInputs): NeedsItem[] {
       });
   }
 
-  return TIER_ORDER.flatMap((tier) =>
+  return NEEDS_TIER_ORDER.flatMap((tier) =>
     newestFirst(
       items.filter((i) => i.tier === tier),
       (i) => i.at,

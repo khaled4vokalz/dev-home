@@ -271,7 +271,7 @@ describe("buildFocus needs", () => {
     ]);
   });
 
-  it("orders tiers self → others → ship, newest first within a tier", () => {
+  it("orders tiers ship → self → others, newest first within a tier", () => {
     expect(
       needs({
         openPRs: [
@@ -294,12 +294,12 @@ describe("buildFocus needs", () => {
         ],
       }),
     ).toEqual([
+      ["ship", "Merge", 1],
+      ["ship", "Merge", 4],
       ["self", "Resolve conflict", 3],
       ["self", "Fix CI", 2],
       ["others", "Re-review", 11],
       ["others", "Review", 10],
-      ["ship", "Merge", 1],
-      ["ship", "Merge", 4],
     ]);
   });
 });
