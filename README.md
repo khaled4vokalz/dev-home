@@ -1,27 +1,52 @@
-# Dev Home Dashboard
+# Dev Home
 
-A developer dashboard built with React and Vite that integrates with Jira and GitHub to provide a unified view of issues, pull requests, team analytics, and personal productivity tools.
+**Live app: [app.devhome.fyi](https://app.devhome.fyi/)**
+
+A developer dashboard that brings your Jira issues and GitHub pull requests into one place, with planning tools for your workday.
 
 ## What is Dev Home?
 
-Dev Home is a static web application that helps you stay on top of your work across Jira and GitHub. It aggregates:
+Dev Home is a static web app (React + Vite) that helps you stay on top of your work across Jira and GitHub. Open [app.devhome.fyi](https://app.devhome.fyi/), add your tokens in **Settings**, and you're set. There's nothing to install and no account to create.
 
-- **Your work**: Jira issues, open PRs, review requests, and mentions across both platforms
-- **Team analytics**: PR velocity, burn-up charts, and team workload (when GitHub org is configured)
-- **Personal productivity**: Notes with reminders, Kanban board, Focus view, and Pomodoro timer
+- **Your work**: Jira issues, your open PRs, review requests and mentions on both platforms
+- **Your day**: a Workday view with Focus and Standup modes, built from your sprint, PRs and reviews
+- **Your team**: team PR velocity, burn-up charts and workload
+- **Personal tools**: notes with reminders, a Kanban board and a Pomodoro timer
 
-All personal data (notes, teams, filters, focus state) lives in your browser's localStorage. GitHub is called directly from the browser. Jira requests go through a small stateless passthrough proxy (`/jira-proxy`), because Jira Cloud blocks cross-origin requests. Credentials are never stored server-side.
+Your data stays in your browser's localStorage. GitHub is called directly from the browser. Jira requests go through a small stateless passthrough proxy (`/jira-proxy`), because Jira Cloud blocks cross-origin requests. Credentials are never stored on the server.
 
 ## Features
 
-- **Summary Dashboard**: At-a-glance view of your open work, mentions, and top priorities
-- **Focus View**: Intelligently prioritized inbox with pin/snooze/dismiss actions
-- **Kanban Board**: Drag-and-drop board pulling from PRs, review requests, and notes tagged `#todo`
-- **Jira Integration**: View assigned issues, search with JQL, track mentions in comments
-- **GitHub Integration**: Track your PRs, review requests, org-wide PRs, and GitHub mentions
-- **Team Analytics**: Track team PR velocity, burn-up charts, and workload distribution
-- **Personal Notes**: Create notes with reminders, link to Jira/GitHub items, tag as `#todo` for Kanban
-- **Pomodoro Timer**: Focus timer with task tracking and break intervals
+**Home**
+
+- **Summary**: at-a-glance view of your open work, mentions and top priorities
+- **Workday**: sprint tickets, off-sprint work, PRs and reviews in one shared layout. **Focus** mode shows what needs you now. **Standup** mode lists what you've done since your last workday (weekend days are configurable) and copies it as Slack markdown
+- **Focus**: prioritized inbox with pin, snooze and dismiss
+- **Board**: drag-and-drop Kanban board pulling from PRs, review requests and notes tagged `#todo`
+- **Notes**: rich-text notes with reminders and browser notifications, linked to Jira and GitHub items
+
+**GitHub**
+
+- **My PRs**: your open PRs, grouped under their Jira ticket, with CI checks and review state
+- **Reviews**: PRs waiting on your review, with your review state and a flag for new commits since you last reviewed
+- **Comments**: GitHub mentions and review requests from your notifications
+- **All PRs**: every open PR across your GitHub org (needs **GitHub Org** in Settings)
+
+**Jira**
+
+- **My Issues**: issues assigned to you, with a quick-view drawer
+- **Issue Search**: JQL search with saved filters
+- **Mentions**: Jira comments that mention you
+
+**Teams**
+
+- **Manage Teams**: group GitHub and Jira users into teams, then open a team dashboard with PR velocity, burn-up charts and workload
+
+**Tools**
+
+- **Pomodoro**: focus timer with task tracking and breaks
+
+You can hide tabs you don't use, and switch between light, dark and system themes, under **Settings → Appearance**.
 
 ## Prerequisites
 
@@ -30,7 +55,11 @@ All personal data (notes, teams, filters, focus state) lives in your browser's l
 - A Jira account with an API token
 - A GitHub personal access token
 
+You only need Node.js and Yarn to run Dev Home yourself. To just use it, open [app.devhome.fyi](https://app.devhome.fyi/).
+
 ## Local Development
+
+To run your own copy instead of using [app.devhome.fyi](https://app.devhome.fyi/):
 
 1. Install dependencies:
 
@@ -52,38 +81,42 @@ Credentials are stored in browser localStorage. GitHub requests go straight to `
 
 ## Required Token Permissions
 
+The same summary is in the app: open **Settings → Integrations** and click **Which permissions does this token need?** under either token field.
+
 ### GitHub Personal Access Token
 
-Create a **fine-grained** or **classic** personal access token at https://github.com/settings/tokens with the following scopes:
+Create a token at https://github.com/settings/tokens. A **classic** token is recommended, with these scopes:
 
-| Scope (Classic Token) | Why it's needed |
+| Scope (classic token) | Why it's needed |
 |---|---|
-| `repo` | Read PR details, commits, check statuses, and review threads across public and private repos |
-| `read:org` | List organization members and repositories |
-| `notifications` | Read your GitHub notifications (mentions, review requests, etc.) |
+| `repo` | Read PRs, commits, check statuses and review threads across public and private repos |
+| `read:org` | List organization members and repositories (Teams and All PRs) |
+| `notifications` | Read your GitHub notifications (mentions and review requests) for the Comments tab |
 
-If using a **fine-grained token**, grant these repository permissions:
+A **fine-grained** token also works, with these permissions:
 
 | Permission | Access | Why it's needed |
 |---|---|---|
 | Pull requests | Read | Search and read PRs you authored or are asked to review |
-| Checks | Read | Read CI/check-suite status on PRs |
-| Contents | Read | Access repository metadata and release info |
+| Checks | Read | Read CI check runs on PRs |
+| Commit statuses | Read | Read commit statuses on PRs |
+| Contents | Read | Read repository contents and branch rules |
 | Metadata | Read | Required for all fine-grained tokens |
-| Members | Read (org-level) | List organization members |
-| Notifications | Read (account-level) | Read your notifications |
+| Members | Read (organization) | List organization members |
+
+GitHub's notifications API doesn't accept fine-grained tokens, so the **Comments** tab stays empty with one. Use a classic token if you need it.
 
 ### Jira API Token
 
-Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens. The token inherits the permissions of the Atlassian account it belongs to. The app needs:
+Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens. Use a regular API token, not a scoped one: Dev Home calls your `*.atlassian.net` site directly, and scoped tokens only work through the `api.atlassian.com` gateway. The token has the same permissions as your Atlassian account, which needs:
 
 | Capability | Why it's needed |
 |---|---|
-| Browse projects | Search for issues assigned to you |
-| Browse issues | Read issue details (summary, status, priority, etc.) |
-| Read comments | Fetch comments on issues to find mentions of your name/email |
+| Browse projects | Search for issues, boards and sprints |
+| Browse issues | Read issue details (summary, status, priority and so on) |
+| Read comments | Fetch comments on issues to find mentions of you |
 
-No write permissions are required — the app only reads data from both GitHub and Jira.
+No write permissions are needed. The app only reads data from GitHub and Jira, and the Jira proxy only forwards read-only endpoints.
 
 #### Jira Host Restriction
 
@@ -129,7 +162,7 @@ yarn start
 
 ## Install as an app
 
-Dev Home is an installable web app (PWA). Open a deployed build or `yarn start` (not `yarn dev`), then:
+Dev Home is an installable web app (PWA). Open [app.devhome.fyi](https://app.devhome.fyi/) (or your own deployment, or `yarn start`, but not `yarn dev`), then:
 
 - **Chrome / Edge:** click the install icon in the address bar.
 - **Safari:** choose **Share → Add to Dock** (macOS) or **Share → Add to Home Screen** (iOS).

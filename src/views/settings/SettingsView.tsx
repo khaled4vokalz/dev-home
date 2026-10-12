@@ -16,6 +16,7 @@ import { MenuItemsToggle } from "./MenuItemsToggle";
 import { WeekendDaysCard } from "./WeekendDaysCard";
 import { SegmentedTabs } from "../../components/SegmentedTabs";
 import { DataBackupCard } from "./DataBackupCard";
+import { TokenPermissionsInfo } from "./TokenPermissionsInfo";
 import "./settings.css";
 import { Toast } from "../../components/Toast";
 
@@ -169,19 +170,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <h6 style={{ marginBottom: 12 }}>GitHub</h6>
                 <Form.Group className="mb-3">
                   <Form.Label className="text-secondary-custom" style={labelStyle}>
-                    GitHub Token
-                  </Form.Label>
-                  <Form.Control
-                    type="password"
-                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                    value={formState.githubToken}
-                    onChange={handleChange("githubToken")}
-                    size="sm"
-                  />
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Label className="text-secondary-custom" style={labelStyle}>
                     GitHub Username
                   </Form.Label>
                   <Form.Control
@@ -191,6 +179,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={handleChange("githubUsername")}
                     size="sm"
                   />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label className="text-secondary-custom" style={labelStyle}>
+                    GitHub Token
+                  </Form.Label>
+                  <Form.Control
+                    type="password"
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    value={formState.githubToken}
+                    onChange={handleChange("githubToken")}
+                    size="sm"
+                  />
+                  <TokenPermissionsInfo provider="github" defaultOpen={!configured} />
                 </Form.Group>
 
                 <Form.Group className="mb-0">
@@ -218,6 +220,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <h6 style={{ marginBottom: 12 }}>JIRA</h6>
                 <Form.Group className="mb-3">
                   <Form.Label className="text-secondary-custom" style={labelStyle}>
+                    JIRA Email
+                  </Form.Label>
+                  <Form.Control
+                    type="email"
+                    placeholder="you@company.com"
+                    value={formState.jiraEmail}
+                    onChange={handleChange("jiraEmail")}
+                    size="sm"
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label className="text-secondary-custom" style={labelStyle}>
+                    JIRA API Token
+                  </Form.Label>
+                  <Form.Control
+                    type="password"
+                    placeholder="your-jira-api-token"
+                    value={formState.jiraApiToken}
+                    onChange={handleChange("jiraApiToken")}
+                    size="sm"
+                  />
+                  <TokenPermissionsInfo provider="jira" defaultOpen={!configured} />
+                </Form.Group>
+
+                <Form.Group className="mb-0">
+                  <Form.Label className="text-secondary-custom" style={labelStyle}>
                     JIRA Base URL
                   </Form.Label>
                   <Form.Control
@@ -232,32 +261,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       {jiraUrlWarning}
                     </Form.Text>
                   )}
-                </Form.Group>
-
-                <Form.Group className="mb-3">
-                  <Form.Label className="text-secondary-custom" style={labelStyle}>
-                    JIRA Email
-                  </Form.Label>
-                  <Form.Control
-                    type="email"
-                    placeholder="you@company.com"
-                    value={formState.jiraEmail}
-                    onChange={handleChange("jiraEmail")}
-                    size="sm"
-                  />
-                </Form.Group>
-
-                <Form.Group className="mb-0">
-                  <Form.Label className="text-secondary-custom" style={labelStyle}>
-                    JIRA API Token
-                  </Form.Label>
-                  <Form.Control
-                    type="password"
-                    placeholder="your-jira-api-token"
-                    value={formState.jiraApiToken}
-                    onChange={handleChange("jiraApiToken")}
-                    size="sm"
-                  />
                 </Form.Group>
               </Card.Body>
             </Card>
